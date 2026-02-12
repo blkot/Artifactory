@@ -1,0 +1,54 @@
+# Environment
+.env
+.env.local
+.venv
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Database
+*.db
+*.db-shm
+*.db-wal
+data/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Logs
+*.log
+logs/
+
+# Assets (large files, not in git)
+assets/*
+!assets/.gitkeep
+!assets/images/thumbnails/.gitkeep
+
+# Backups
+backups/
+
+# Docker
+.dockerignore
+
+# Alembic
+alembic/versions/*.py
+!alembic/versions/.gitkeep
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
