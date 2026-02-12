@@ -1,0 +1,4 @@
+Use Alembic for schema migrations.
+Example:
+  alembic revision --autogenerate -m "init"
+  alembic upgrade head

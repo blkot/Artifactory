@@ -1,6 +1,9 @@
 # Environment
 .env
 .env.local
+.env.*
+!.env.example
+!backend/.env.example
 .venv
 venv/
 __pycache__/
@@ -52,3 +55,11 @@ alembic/versions/*.py
 dist/
 build/
 *.egg-info/
+
+# Frontend
+frontend/node_modules/
+frontend/.vite/
+
+# Backend
+backend/.venv/
+backend/.pytest_cache/

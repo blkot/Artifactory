@@ -1,0 +1,104 @@
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.orm import Session
+
+from app.crud.build_log import create_for_kit, list_by_kit
+from app.crud.kit import create_kit, delete_kit, get_kit, list_kits, update_kit
+from app.crud.tag import get_tags_by_ids
+from app.db import get_db
+from app.schemas.build_log import BuildLogCreate, BuildLogRead
+from app.schemas.kit import KitCreate, KitListResponse, KitRead, KitUpdate
+from app.services.search_service import SearchService
+
+router = APIRouter(prefix="/kits", tags=["kits"])
+
+
+@router.get("", response_model=KitListResponse)
+def get_kits(skip: int = 0, limit: int = Query(default=20, le=100), db: Session = Depends(get_db)):
+    items, total = list_kits(db, skip, limit)
+    return KitListResponse(items=items, total=total)
+
+
+@router.post("", response_model=KitRead, status_code=status.HTTP_201_CREATED)
+def post_kit(payload: KitCreate, db: Session = Depends(get_db)):
+    kit = create_kit(db, payload)
+    kit.tags = get_tags_by_ids(db, payload.tag_ids)
+    db.commit()
+    db.refresh(kit)
+    return kit
+
+
+@router.get("/search", response_model=KitListResponse)
+def search_kits(
+    q: str | None = None,
+    grade: str | None = None,
+    brand: str | None = None,
+    series: str | None = None,
+    build_status: str | None = None,
+    scale: str | None = None,
+    tag: str | None = None,
+    skip: int = 0,
+    limit: int = Query(default=20, le=100),
+    db: Session = Depends(get_db),
+):
+    items, total = SearchService(db).search_kits(
+        q=q,
+        grade=grade,
+        brand=brand,
+        series=series,
+        build_status=build_status,
+        scale=scale,
+        tag=tag,
+        skip=skip,
+        limit=limit,
+    )
+    return KitListResponse(items=items, total=total)
+
+
+@router.get("/{kit_id}", response_model=KitRead)
+def get_kit_detail(kit_id: int, db: Session = Depends(get_db)):
+    kit = get_kit(db, kit_id)
+    if not kit:
+        raise HTTPException(status_code=404, detail="Kit not found")
+    return kit
+
+
+@router.put("/{kit_id}", response_model=KitRead)
+def put_kit(kit_id: int, payload: KitUpdate, db: Session = Depends(get_db)):
+    kit = get_kit(db, kit_id)
+    if not kit:
+        raise HTTPException(status_code=404, detail="Kit not found")
+
+    update_kit(kit, payload)
+    if payload.tag_ids is not None:
+        kit.tags = get_tags_by_ids(db, payload.tag_ids)
+
+    db.commit()
+    db.refresh(kit)
+    return kit
+
+
+@router.delete("/{kit_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_kit(kit_id: int, db: Session = Depends(get_db)):
+    kit = get_kit(db, kit_id)
+    if not kit:
+        raise HTTPException(status_code=404, detail="Kit not found")
+
+    delete_kit(db, kit)
+    db.commit()
+
+
+@router.get("/{kit_id}/timeline", response_model=list[BuildLogRead])
+def get_timeline(kit_id: int, db: Session = Depends(get_db)) -> list[BuildLogRead]:
+    if not get_kit(db, kit_id):
+        raise HTTPException(status_code=404, detail="Kit not found")
+    return list_by_kit(db, kit_id)
+
+
+@router.post("/{kit_id}/timeline", response_model=BuildLogRead, status_code=status.HTTP_201_CREATED)
+def post_timeline(kit_id: int, payload: BuildLogCreate, db: Session = Depends(get_db)) -> BuildLogRead:
+    if not get_kit(db, kit_id):
+        raise HTTPException(status_code=404, detail="Kit not found")
+    item = create_for_kit(db, kit_id, payload)
+    db.commit()
+    db.refresh(item)
+    return item

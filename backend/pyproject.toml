@@ -1,0 +1,39 @@
+[project]
+name = "artifactory-backend"
+version = "0.1.0"
+description = "Artifactory backend API"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.116.0",
+  "uvicorn[standard]>=0.35.0",
+  "sqlalchemy>=2.0.36",
+  "alembic>=1.14.0",
+  "pydantic>=2.10.0",
+  "email-validator>=2.2.0",
+  "pydantic-settings>=2.7.0",
+  "python-jose[cryptography]>=3.3.0",
+  "passlib[bcrypt]>=1.7.4",
+  "python-multipart>=0.0.20",
+  "pillow>=11.1.0",
+  "python-magic>=0.4.27",
+  "aiofiles>=24.1.0",
+  "python-dotenv>=1.0.1"
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3.0",
+  "httpx>=0.28.0",
+  "ruff>=0.9.0",
+  "black>=24.10.0"
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.black]
+line-length = 100
