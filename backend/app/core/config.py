@@ -45,6 +45,8 @@ class Settings(BaseSettings):
     rate_limit_enabled: bool = True
     rate_limit_requests: int = 120
     rate_limit_window_seconds: int = 60
+    stats_cache_enabled: bool = True
+    stats_cache_ttl_seconds: int = 15
     sql_slow_query_log_enabled: bool = True
     sql_slow_query_threshold_ms: int = 200
     rate_limit_exclude_paths: Annotated[list[str], NoDecode] = Field(

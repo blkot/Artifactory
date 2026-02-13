@@ -84,6 +84,10 @@ SQL performance telemetry:
 - `SQL_SLOW_QUERY_LOG_ENABLED`: enable slow-query logging
 - `SQL_SLOW_QUERY_THRESHOLD_MS`: log queries slower than this threshold (ms)
 
+Stats caching:
+- `STATS_CACHE_ENABLED`: enable in-memory caching for `/api/v1/stats`
+- `STATS_CACHE_TTL_SECONDS`: cache TTL in seconds
+
 ## Docker
 ```bash
 docker compose up --build

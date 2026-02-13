@@ -10,6 +10,7 @@ from app.core.config import get_settings
 from app.core.rate_limit import InMemoryRateLimiter
 from app.db import Base, get_db
 from app.main import app
+from app.services.stats_service import StatsService
 
 
 @pytest.fixture(scope="session")
@@ -35,10 +36,12 @@ def db_session(test_engine) -> Generator[Session, None, None]:
 
 @pytest.fixture(autouse=True)
 def clean_db(db_session: Session) -> Generator[None, None, None]:
+    StatsService.reset_cache()
     for table in reversed(Base.metadata.sorted_tables):
         db_session.execute(table.delete())
     db_session.commit()
     yield
+    StatsService.reset_cache()
 
 
 @pytest.fixture(autouse=True)
@@ -51,6 +54,8 @@ def test_settings(tmp_path_factory: pytest.TempPathFactory) -> Generator[None, N
     old_rate_limit_enabled = settings.rate_limit_enabled
     old_rate_limit_requests = settings.rate_limit_requests
     old_rate_limit_window = settings.rate_limit_window_seconds
+    old_stats_cache_enabled = settings.stats_cache_enabled
+    old_stats_cache_ttl = settings.stats_cache_ttl_seconds
     old_rate_limit_exclude_paths = list(settings.rate_limit_exclude_paths)
 
     settings.assets_dir = str(tmp_path_factory.mktemp("assets"))
@@ -60,6 +65,8 @@ def test_settings(tmp_path_factory: pytest.TempPathFactory) -> Generator[None, N
     settings.rate_limit_enabled = True
     settings.rate_limit_requests = 1000
     settings.rate_limit_window_seconds = 60
+    settings.stats_cache_enabled = True
+    settings.stats_cache_ttl_seconds = 15
     settings.rate_limit_exclude_paths = [
         "/health",
         "/health/live",
@@ -81,6 +88,8 @@ def test_settings(tmp_path_factory: pytest.TempPathFactory) -> Generator[None, N
     settings.rate_limit_enabled = old_rate_limit_enabled
     settings.rate_limit_requests = old_rate_limit_requests
     settings.rate_limit_window_seconds = old_rate_limit_window
+    settings.stats_cache_enabled = old_stats_cache_enabled
+    settings.stats_cache_ttl_seconds = old_stats_cache_ttl
     settings.rate_limit_exclude_paths = old_rate_limit_exclude_paths
     app.state.rate_limiter = InMemoryRateLimiter(
         limit=settings.rate_limit_requests,
