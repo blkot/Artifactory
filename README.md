@@ -74,6 +74,11 @@ cd backend
 uv run pytest
 ```
 
+## Release Check
+```bash
+./scripts/release_check.sh
+```
+
 ## Backup CLI
 ```bash
 cd backend
