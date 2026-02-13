@@ -1,22 +1,28 @@
+import logging
 from pathlib import Path
+import time
+from uuid import uuid4
 
 from fastapi import FastAPI
 from fastapi import HTTPException
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app.api.exceptions import AppException
 from app.api.v1.api import api_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
+from app.core.metrics import InMemoryMetrics
 from app.core.rate_limit import InMemoryRateLimiter
-from app.db import Base, engine
+from app.db import Base, SessionLocal, engine
 from app import models  # noqa: F401
 
 settings = get_settings()
 configure_logging(settings.log_level)
+request_logger = logging.getLogger("app.request")
 
 for folder in [
     Path(settings.assets_dir) / "images",
@@ -42,43 +48,90 @@ app.state.rate_limiter = InMemoryRateLimiter(
     limit=settings.rate_limit_requests,
     window_seconds=settings.rate_limit_window_seconds,
 )
+app.state.metrics = InMemoryMetrics()
 
 
 @app.middleware("http")
-async def rate_limit_middleware(request, call_next):
-    if not settings.rate_limit_enabled:
-        return await call_next(request)
-
+async def observability_middleware(request, call_next):
+    request_id = request.headers.get("X-Request-ID") or uuid4().hex
+    started_at = time.perf_counter()
     path = request.url.path
-    if path in settings.rate_limit_exclude_paths or request.method == "OPTIONS":
-        return await call_next(request)
+    method = request.method.upper()
+    status_code = 500
+    rate_limit_applied = path not in settings.rate_limit_exclude_paths and method != "OPTIONS"
 
-    client_ip = request.client.host if request.client else "unknown"
-    key = f"{client_ip}:{path}"
-    allowed, retry_after = app.state.rate_limiter.allow(key)
-    if not allowed:
-        return JSONResponse(
-            status_code=429,
-            headers={"Retry-After": str(retry_after)},
-            content={
-                "error": "rate_limit_exceeded",
-                "message": "Too many requests",
-                "details": {
-                    "limit": settings.rate_limit_requests,
-                    "window_seconds": settings.rate_limit_window_seconds,
-                    "retry_after": retry_after,
-                },
+    try:
+        if settings.rate_limit_enabled and rate_limit_applied:
+            client_ip = request.client.host if request.client else "unknown"
+            key = f"{client_ip}:{path}"
+            allowed, retry_after = app.state.rate_limiter.allow(key)
+            if not allowed:
+                response = JSONResponse(
+                    status_code=429,
+                    headers={
+                        "Retry-After": str(retry_after),
+                        "X-Request-ID": request_id,
+                    },
+                    content={
+                        "error": "rate_limit_exceeded",
+                        "message": "Too many requests",
+                        "details": {
+                            "limit": settings.rate_limit_requests,
+                            "window_seconds": settings.rate_limit_window_seconds,
+                            "retry_after": retry_after,
+                        },
+                    },
+                )
+                status_code = 429
+                return response
+
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        if settings.rate_limit_enabled and rate_limit_applied:
+            response.headers["X-RateLimit-Limit"] = str(settings.rate_limit_requests)
+        status_code = response.status_code
+        return response
+    finally:
+        duration_ms = (time.perf_counter() - started_at) * 1000
+        app.state.metrics.record_request(method=method, path=path, status_code=status_code, duration_ms=duration_ms)
+        request_logger.info(
+            "request_completed",
+            extra={
+                "request_id": request_id,
+                "method": method,
+                "path": path,
+                "status_code": status_code,
+                "duration_ms": round(duration_ms, 2),
+                "rate_limit_applied": rate_limit_applied and settings.rate_limit_enabled,
             },
         )
-
-    response = await call_next(request)
-    response.headers["X-RateLimit-Limit"] = str(settings.rate_limit_requests)
-    return response
 
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok"}
+    return {"status": "ok", "check": "liveness"}
+
+
+@app.get("/health/live")
+def health_live() -> dict[str, str]:
+    return {"status": "ok", "check": "liveness"}
+
+
+@app.get("/health/ready")
+def health_ready():
+    db = SessionLocal()
+    try:
+        db.execute(text("SELECT 1"))
+    except Exception:
+        return JSONResponse(status_code=503, content={"status": "error", "check": "readiness"})
+    finally:
+        db.close()
+    return {"status": "ok", "check": "readiness"}
+
+
+@app.get("/metrics")
+def metrics() -> PlainTextResponse:
+    return PlainTextResponse(app.state.metrics.render_prometheus(), media_type="text/plain; version=0.0.4")
 
 
 app.include_router(api_router, prefix="/api/v1")

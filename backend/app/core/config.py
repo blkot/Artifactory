@@ -46,7 +46,15 @@ class Settings(BaseSettings):
     rate_limit_requests: int = 120
     rate_limit_window_seconds: int = 60
     rate_limit_exclude_paths: Annotated[list[str], NoDecode] = Field(
-        default_factory=lambda: ["/health", "/docs", "/redoc", "/openapi.json"]
+        default_factory=lambda: [
+            "/health",
+            "/health/live",
+            "/health/ready",
+            "/metrics",
+            "/docs",
+            "/redoc",
+            "/openapi.json",
+        ]
     )
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")

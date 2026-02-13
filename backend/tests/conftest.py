@@ -59,7 +59,15 @@ def test_settings(tmp_path_factory: pytest.TempPathFactory) -> Generator[None, N
     settings.rate_limit_enabled = True
     settings.rate_limit_requests = 1000
     settings.rate_limit_window_seconds = 60
-    settings.rate_limit_exclude_paths = ["/health", "/docs", "/redoc", "/openapi.json"]
+    settings.rate_limit_exclude_paths = [
+        "/health",
+        "/health/live",
+        "/health/ready",
+        "/metrics",
+        "/docs",
+        "/redoc",
+        "/openapi.json",
+    ]
     app.state.rate_limiter = InMemoryRateLimiter(
         limit=settings.rate_limit_requests,
         window_seconds=settings.rate_limit_window_seconds,

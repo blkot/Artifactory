@@ -52,6 +52,12 @@ Frontend: `http://localhost:5173`
 - `RATE_LIMIT_WINDOW_SECONDS`: rate-limit window size
 - `RATE_LIMIT_EXCLUDE_PATHS`: paths excluded from limiting
 
+## Observability Endpoints
+- `GET /health` liveness shortcut
+- `GET /health/live` liveness check
+- `GET /health/ready` readiness check (database connectivity)
+- `GET /metrics` Prometheus-style counters
+
 ## Docker
 ```bash
 docker compose up --build
