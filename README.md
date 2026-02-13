@@ -80,6 +80,10 @@ Recommended policy by environment:
 - `GET /health/ready` readiness check (database connectivity)
 - `GET /metrics` Prometheus-style counters
 
+SQL performance telemetry:
+- `SQL_SLOW_QUERY_LOG_ENABLED`: enable slow-query logging
+- `SQL_SLOW_QUERY_THRESHOLD_MS`: log queries slower than this threshold (ms)
+
 ## Docker
 ```bash
 docker compose up --build

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, String
+from sqlalchemy import Column, DateTime, Enum, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import relationship
 
 from app.db import Base
@@ -9,6 +9,7 @@ from app.models.enums import LinkCategory
 
 class Link(Base):
     __tablename__ = "links"
+    __table_args__ = (Index("ix_links_category", "category"),)
 
     id = Column(Integer, primary_key=True, index=True)
     kit_id = Column(Integer, ForeignKey("kits.id", ondelete="CASCADE"), nullable=False, index=True)

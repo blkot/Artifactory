@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import Column, Date, DateTime, Enum, Integer, Numeric, String
+from sqlalchemy import Column, Date, DateTime, Enum, Index, Integer, Numeric, String
 from sqlalchemy.orm import relationship
 
 from app.db import Base
@@ -9,6 +9,13 @@ from app.models.enums import BuildStatus, KitGrade
 
 class Kit(Base):
     __tablename__ = "kits"
+    __table_args__ = (
+        Index("ix_kits_grade", "grade"),
+        Index("ix_kits_brand", "brand"),
+        Index("ix_kits_series", "series"),
+        Index("ix_kits_build_status", "build_status"),
+        Index("ix_kits_scale", "scale"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(200), nullable=False, index=True)
