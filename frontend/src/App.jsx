@@ -23,6 +23,7 @@ const emptyKit = {
 export default function App() {
   const [kits, setKits] = useState([]);
   const [links, setLinks] = useState([]);
+  const [timeline, setTimeline] = useState([]);
   const [tags, setTags] = useState([]);
   const [stats, setStats] = useState(null);
   const [token, setToken] = useState(() => loadTokenFromStorage());
@@ -38,6 +39,11 @@ export default function App() {
     title: "",
     notes: "",
     tag_ids: [],
+  });
+  const [timelineKitId, setTimelineKitId] = useState("");
+  const [timelineForm, setTimelineForm] = useState({
+    status: "IN_PROGRESS",
+    notes: "",
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -58,6 +64,9 @@ export default function App() {
       setLinks(linkRes || []);
       if (!linkForm.kit_id && (kitRes.items || []).length > 0) {
         setLinkForm((prev) => ({ ...prev, kit_id: String(kitRes.items[0].id) }));
+      }
+      if (!timelineKitId && (kitRes.items || []).length > 0) {
+        setTimelineKitId(String(kitRes.items[0].id));
       }
       setAuthMessage(token ? "Authenticated session active." : "");
     } catch (err) {
@@ -80,6 +89,25 @@ export default function App() {
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (!timelineKitId) {
+      setTimeline([]);
+      return;
+    }
+    async function loadTimeline() {
+      try {
+        const items = await api.getTimeline(Number(timelineKitId));
+        setTimeline(items || []);
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 401) {
+          setAuthMessage("You must log in to view timeline data.");
+        }
+        setError(err.message);
+      }
+    }
+    loadTimeline();
+  }, [timelineKitId]);
 
   const statusMap = useMemo(() => {
     const map = {};
@@ -198,6 +226,23 @@ export default function App() {
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         setAuthMessage("You must log in to manage links.");
+      }
+      setError(err.message);
+    }
+  }
+
+  async function submitTimeline(event) {
+    event.preventDefault();
+    if (!timelineKitId) return;
+    setError("");
+    try {
+      await api.createTimeline(Number(timelineKitId), timelineForm);
+      setTimelineForm((prev) => ({ ...prev, notes: "" }));
+      const items = await api.getTimeline(Number(timelineKitId));
+      setTimeline(items || []);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        setAuthMessage("You must log in to create timeline entries.");
       }
       setError(err.message);
     }
@@ -409,6 +454,53 @@ export default function App() {
                       Delete
                     </button>
                   </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="card">
+        <h2>Build Timeline</h2>
+        <form onSubmit={submitTimeline} className="form">
+          <select
+            required
+            value={timelineKitId}
+            onChange={(e) => setTimelineKitId(e.target.value)}
+          >
+            <option value="" disabled>Select kit</option>
+            {kits.map((kit) => <option key={`timeline-kit-${kit.id}`} value={kit.id}>{kit.name}</option>)}
+          </select>
+          <select
+            value={timelineForm.status}
+            onChange={(e) => setTimelineForm((prev) => ({ ...prev, status: e.target.value }))}
+          >
+            {BUILD_STATUS.map((state) => <option key={`timeline-status-${state}`} value={state}>{state}</option>)}
+          </select>
+          <input
+            placeholder="Timeline notes"
+            value={timelineForm.notes}
+            onChange={(e) => setTimelineForm((prev) => ({ ...prev, notes: e.target.value }))}
+          />
+          <button type="submit">Add Timeline Entry</button>
+        </form>
+
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Created</th>
+                <th>Status</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              {timeline.map((item) => (
+                <tr key={item.id}>
+                  <td>{new Date(item.created_at).toLocaleString()}</td>
+                  <td>{item.status}</td>
+                  <td>{item.notes || "-"}</td>
                 </tr>
               ))}
             </tbody>

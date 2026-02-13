@@ -78,6 +78,9 @@ export const api = {
   getLinks: () => request("/links"),
   createLink: (payload) => request("/links", { method: "POST", body: JSON.stringify(payload) }),
   deleteLink: (id) => request(`/links/${id}`, { method: "DELETE" }),
+  getTimeline: (kitId) => request(`/kits/${kitId}/timeline`),
+  createTimeline: (kitId, payload) =>
+    request(`/kits/${kitId}/timeline`, { method: "POST", body: JSON.stringify(payload) }),
   login: async (username, password) => {
     const body = new URLSearchParams();
     body.set("username", username);
