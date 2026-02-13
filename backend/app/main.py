@@ -1,11 +1,13 @@
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi import HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
-from app.api.errors import AppException
+from app.api.exceptions import AppException
 from app.api.v1.api import api_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
@@ -27,7 +29,7 @@ for folder in [
 
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title=settings.app_name, version=settings.app_version)
+app = FastAPI(title=settings.app_name, version=settings.app_version, debug=settings.debug)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -48,18 +50,61 @@ app.include_router(api_router, prefix="/api/v1")
 @app.exception_handler(AppException)
 async def app_exception_handler(_, exc: AppException):
     return JSONResponse(
-        status_code=400,
+        status_code=exc.status_code,
         content={"error": exc.error, "message": exc.message, "details": exc.details},
     )
 
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(_, exc: RequestValidationError):
+    serializable_errors = []
+    for err in exc.errors():
+        cloned = dict(err)
+        if "ctx" in cloned and isinstance(cloned["ctx"], dict):
+            cloned["ctx"] = {
+                key: (str(value) if not isinstance(value, (str, int, float, bool, type(None), list, dict)) else value)
+                for key, value in cloned["ctx"].items()
+            }
+        serializable_errors.append(cloned)
+
     return JSONResponse(
         status_code=422,
         content={
             "error": "validation_error",
             "message": "Request validation failed",
-            "details": {"errors": exc.errors()},
+            "details": {"errors": serializable_errors},
+        },
+    )
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(_, exc: HTTPException):
+    detail = exc.detail if isinstance(exc.detail, str) else "Request failed"
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"error": "http_error", "message": detail, "details": {"raw": exc.detail}},
+    )
+
+
+@app.exception_handler(IntegrityError)
+async def integrity_error_handler(_, exc: IntegrityError):
+    return JSONResponse(
+        status_code=409,
+        content={
+            "error": "database_integrity_error",
+            "message": "The request violates a database constraint",
+            "details": {"raw": str(exc.orig)},
+        },
+    )
+
+
+@app.exception_handler(SQLAlchemyError)
+async def sqlalchemy_error_handler(_, exc: SQLAlchemyError):
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "database_error",
+            "message": "An unexpected database error occurred",
+            "details": {"raw": str(exc)},
         },
     )

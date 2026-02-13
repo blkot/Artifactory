@@ -14,6 +14,8 @@ def get_link(db: Session, link_id: int) -> Link | None:
 
 def create_link(db: Session, payload: LinkCreate) -> Link:
     data = payload.model_dump(exclude={"tag_ids"})
+    if "url" in data and data["url"] is not None:
+        data["url"] = str(data["url"])
     link = Link(**data)
     db.add(link)
     db.flush()
@@ -22,6 +24,8 @@ def create_link(db: Session, payload: LinkCreate) -> Link:
 
 def update_link(link: Link, payload: LinkUpdate) -> Link:
     for key, value in payload.model_dump(exclude_unset=True, exclude={"tag_ids"}).items():
+        if key == "url" and value is not None:
+            value = str(value)
         setattr(link, key, value)
     return link
 

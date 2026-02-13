@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
+from app.api.exceptions import KitNotFoundException, LinkNotFoundException
 from app.crud.kit import get_kit
 from app.crud.link import create_link, delete_link, get_link, list_links, update_link
 from app.crud.tag import get_tags_by_ids
@@ -18,7 +19,7 @@ def get_links(db: Session = Depends(get_db)) -> list[LinkRead]:
 @router.post("", response_model=LinkRead, status_code=status.HTTP_201_CREATED)
 def post_link(payload: LinkCreate, db: Session = Depends(get_db)) -> LinkRead:
     if not get_kit(db, payload.kit_id):
-        raise HTTPException(status_code=404, detail="Kit not found")
+        raise KitNotFoundException(payload.kit_id)
 
     link = create_link(db, payload)
     link.tags = get_tags_by_ids(db, payload.tag_ids)
@@ -31,7 +32,7 @@ def post_link(payload: LinkCreate, db: Session = Depends(get_db)) -> LinkRead:
 def put_link(link_id: int, payload: LinkUpdate, db: Session = Depends(get_db)) -> LinkRead:
     link = get_link(db, link_id)
     if not link:
-        raise HTTPException(status_code=404, detail="Link not found")
+        raise LinkNotFoundException(link_id)
 
     update_link(link, payload)
     if payload.tag_ids is not None:
@@ -46,6 +47,6 @@ def put_link(link_id: int, payload: LinkUpdate, db: Session = Depends(get_db)) -
 def remove_link(link_id: int, db: Session = Depends(get_db)):
     link = get_link(db, link_id)
     if not link:
-        raise HTTPException(status_code=404, detail="Link not found")
+        raise LinkNotFoundException(link_id)
     delete_link(db, link)
     db.commit()

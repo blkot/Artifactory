@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, HttpUrl
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
 from app.models.enums import LinkCategory
 from app.schemas.tag import TagRead
@@ -12,7 +12,7 @@ class LinkBase(BaseModel):
     category: LinkCategory
     title: str
     notes: str | None = None
-    tag_ids: list[int] = []
+    tag_ids: list[int] = Field(default_factory=list)
 
 
 class LinkCreate(LinkBase):
@@ -37,4 +37,4 @@ class LinkRead(BaseModel):
     title: str
     notes: str | None = None
     created_at: datetime
-    tags: list[TagRead] = []
+    tags: list[TagRead] = Field(default_factory=list)

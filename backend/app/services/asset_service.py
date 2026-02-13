@@ -6,7 +6,7 @@ from fastapi import UploadFile
 from PIL import Image
 from sqlalchemy.orm import Session
 
-from app.api.errors import AssetUploadException, FileTooLargeException, InvalidFileTypeException
+from app.api.exceptions import AssetUploadException, FileTooLargeException, InvalidFileTypeException
 from app.core.config import get_settings
 from app.models.asset import Asset
 from app.models.enums import AssetType

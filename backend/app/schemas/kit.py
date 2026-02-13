@@ -1,24 +1,46 @@
 from datetime import date, datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.enums import BuildStatus, KitGrade
 from app.schemas.tag import TagRead
 
 
 class KitBase(BaseModel):
-    name: str
+    name: str = Field(min_length=1, max_length=200)
     grade: KitGrade
-    series: str
-    brand: str
-    scale: str
+    series: str = Field(min_length=1, max_length=120)
+    brand: str = Field(min_length=1, max_length=120)
+    scale: str = Field(min_length=3, max_length=32)
     kit_number: str | None = None
     purchase_date: date | None = None
     purchase_price: Decimal | None = None
     purchase_shop: str | None = None
     build_status: BuildStatus = BuildStatus.NEW
-    tag_ids: list[int] = []
+    tag_ids: list[int] = Field(default_factory=list)
+
+    @field_validator("name", "series", "brand", "scale", mode="before")
+    @classmethod
+    def normalize_required_strings(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Value cannot be empty")
+        return value
+
+    @field_validator("purchase_price")
+    @classmethod
+    def validate_purchase_price(cls, value: Decimal | None) -> Decimal | None:
+        if value is not None and value < 0:
+            raise ValueError("purchase_price must be greater than or equal to 0")
+        return value
+
+    @field_validator("scale")
+    @classmethod
+    def validate_scale_format(cls, value: str) -> str:
+        if "/" not in value:
+            raise ValueError("scale must look like '1/144'")
+        return value
 
 
 class KitCreate(KitBase):
@@ -38,6 +60,32 @@ class KitUpdate(BaseModel):
     build_status: BuildStatus | None = None
     tag_ids: list[int] | None = None
 
+    @field_validator("name", "series", "brand", "scale", mode="before")
+    @classmethod
+    def normalize_optional_strings(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        value = value.strip()
+        if not value:
+            raise ValueError("Value cannot be empty")
+        return value
+
+    @field_validator("purchase_price")
+    @classmethod
+    def validate_update_purchase_price(cls, value: Decimal | None) -> Decimal | None:
+        if value is not None and value < 0:
+            raise ValueError("purchase_price must be greater than or equal to 0")
+        return value
+
+    @field_validator("scale")
+    @classmethod
+    def validate_update_scale_format(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        if "/" not in value:
+            raise ValueError("scale must look like '1/144'")
+        return value
+
 
 class KitRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -55,7 +103,7 @@ class KitRead(BaseModel):
     build_status: BuildStatus
     created_at: datetime
     updated_at: datetime
-    tags: list[TagRead] = []
+    tags: list[TagRead] = Field(default_factory=list)
 
 
 class KitListResponse(BaseModel):

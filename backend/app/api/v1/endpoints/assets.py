@@ -1,9 +1,10 @@
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
+from app.api.exceptions import AssetNotFoundException
 from app.crud.asset import get_asset
 from app.db import get_db
 from app.models.enums import AssetType
@@ -35,7 +36,7 @@ async def upload_asset(
 def get_asset_metadata(asset_id: int, db: Session = Depends(get_db)) -> AssetRead:
     asset = get_asset(db, asset_id)
     if not asset:
-        raise HTTPException(status_code=404, detail="Asset not found")
+        raise AssetNotFoundException(asset_id)
     return asset
 
 
@@ -43,11 +44,11 @@ def get_asset_metadata(asset_id: int, db: Session = Depends(get_db)) -> AssetRea
 def get_asset_file(asset_id: int, db: Session = Depends(get_db)):
     asset = get_asset(db, asset_id)
     if not asset:
-        raise HTTPException(status_code=404, detail="Asset not found")
+        raise AssetNotFoundException(asset_id)
 
     path = Path(asset.file_path)
     if not path.exists():
-        raise HTTPException(status_code=404, detail="File not found")
+        raise AssetNotFoundException(asset_id)
     return FileResponse(path=path)
 
 
@@ -55,5 +56,5 @@ def get_asset_file(asset_id: int, db: Session = Depends(get_db)):
 def remove_asset(asset_id: int, db: Session = Depends(get_db)):
     asset = get_asset(db, asset_id)
     if not asset:
-        raise HTTPException(status_code=404, detail="Asset not found")
+        raise AssetNotFoundException(asset_id)
     AssetService(db).remove_asset(asset)

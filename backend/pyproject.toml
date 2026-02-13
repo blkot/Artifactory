@@ -13,6 +13,7 @@ dependencies = [
   "pydantic-settings>=2.7.0",
   "python-jose[cryptography]>=3.3.0",
   "passlib[bcrypt]>=1.7.4",
+  "bcrypt==4.0.1",
   "python-multipart>=0.0.20",
   "pillow>=11.1.0",
   "python-magic>=0.4.27",
@@ -31,6 +32,9 @@ dev = [
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+filterwarnings = [
+  "ignore:'crypt' is deprecated and slated for removal in Python 3.13:DeprecationWarning:passlib.utils",
+]
 
 [tool.ruff]
 line-length = 100
