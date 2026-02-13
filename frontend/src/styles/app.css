@@ -129,6 +129,14 @@ button:hover {
   background: #243b53;
 }
 
+.btn-danger {
+  background: #8f2d2d;
+}
+
+.btn-danger:hover {
+  background: #6f1d1b;
+}
+
 .tag-list {
   display: flex;
   flex-wrap: wrap;
@@ -159,6 +167,15 @@ td {
   border-bottom: 1px solid #d9e2ec;
   text-align: left;
   padding: 0.55rem;
+}
+
+a {
+  color: #0b4f6c;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
 }
 
 .error {

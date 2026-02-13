@@ -75,6 +75,9 @@ export const api = {
   getTags: () => request("/tags"),
   createTag: (payload) => request("/tags", { method: "POST", body: JSON.stringify(payload) }),
   getStats: () => request("/stats"),
+  getLinks: () => request("/links"),
+  createLink: (payload) => request("/links", { method: "POST", body: JSON.stringify(payload) }),
+  deleteLink: (id) => request(`/links/${id}`, { method: "DELETE" }),
   login: async (username, password) => {
     const body = new URLSearchParams();
     body.set("username", username);

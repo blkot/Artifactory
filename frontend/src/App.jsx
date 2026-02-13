@@ -4,6 +4,7 @@ import { api, ApiError, loadTokenFromStorage, setAuthToken } from "./api/client"
 
 const GRADES = ["HG", "RG", "MG", "PG", "SD", "CUSTOM"];
 const BUILD_STATUS = ["NEW", "OPENED", "IN_PROGRESS", "COMPLETED"];
+const LINK_CATEGORIES = ["BUILD_LOG", "REVIEW", "TUTORIAL", "GALLERY"];
 
 const emptyKit = {
   name: "",
@@ -21,6 +22,7 @@ const emptyKit = {
 
 export default function App() {
   const [kits, setKits] = useState([]);
+  const [links, setLinks] = useState([]);
   const [tags, setTags] = useState([]);
   const [stats, setStats] = useState(null);
   const [token, setToken] = useState(() => loadTokenFromStorage());
@@ -29,6 +31,14 @@ export default function App() {
   const [authMessage, setAuthMessage] = useState("");
   const [kitForm, setKitForm] = useState(emptyKit);
   const [tagForm, setTagForm] = useState({ name: "", color: "#6495ed" });
+  const [linkForm, setLinkForm] = useState({
+    kit_id: "",
+    url: "",
+    category: "REVIEW",
+    title: "",
+    notes: "",
+    tag_ids: [],
+  });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -36,10 +46,19 @@ export default function App() {
     setLoading(true);
     setError("");
     try {
-      const [kitRes, tagRes, statsRes] = await Promise.all([api.getKits(), api.getTags(), api.getStats()]);
+      const [kitRes, tagRes, statsRes, linkRes] = await Promise.all([
+        api.getKits(),
+        api.getTags(),
+        api.getStats(),
+        api.getLinks(),
+      ]);
       setKits(kitRes.items || []);
       setTags(tagRes || []);
       setStats(statsRes);
+      setLinks(linkRes || []);
+      if (!linkForm.kit_id && (kitRes.items || []).length > 0) {
+        setLinkForm((prev) => ({ ...prev, kit_id: String(kitRes.items[0].id) }));
+      }
       setAuthMessage(token ? "Authenticated session active." : "");
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
@@ -136,6 +155,52 @@ export default function App() {
       ...prev,
       tag_ids: prev.tag_ids.includes(id) ? prev.tag_ids.filter((item) => item !== id) : [...prev.tag_ids, id],
     }));
+  }
+
+  function toggleLinkTag(id) {
+    setLinkForm((prev) => ({
+      ...prev,
+      tag_ids: prev.tag_ids.includes(id)
+        ? prev.tag_ids.filter((item) => item !== id)
+        : [...prev.tag_ids, id],
+    }));
+  }
+
+  async function submitLink(event) {
+    event.preventDefault();
+    setError("");
+    try {
+      await api.createLink({
+        ...linkForm,
+        kit_id: Number(linkForm.kit_id),
+      });
+      setLinkForm((prev) => ({
+        ...prev,
+        url: "",
+        title: "",
+        notes: "",
+        tag_ids: [],
+      }));
+      await loadData();
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        setAuthMessage("You must log in to manage links.");
+      }
+      setError(err.message);
+    }
+  }
+
+  async function removeLink(id) {
+    setError("");
+    try {
+      await api.deleteLink(id);
+      await loadData();
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        setAuthMessage("You must log in to manage links.");
+      }
+      setError(err.message);
+    }
   }
 
   return (
@@ -238,6 +303,57 @@ export default function App() {
             <button type="submit">Add Tag</button>
           </form>
         </article>
+
+        <article className="card">
+          <h2>Create Link</h2>
+          <form onSubmit={submitLink} className="form">
+            <select
+              required
+              value={linkForm.kit_id}
+              onChange={(e) => setLinkForm((prev) => ({ ...prev, kit_id: e.target.value }))}
+            >
+              <option value="" disabled>Select kit</option>
+              {kits.map((kit) => <option key={kit.id} value={kit.id}>{kit.name}</option>)}
+            </select>
+            <input
+              required
+              type="url"
+              placeholder="https://..."
+              value={linkForm.url}
+              onChange={(e) => setLinkForm((prev) => ({ ...prev, url: e.target.value }))}
+            />
+            <select
+              value={linkForm.category}
+              onChange={(e) => setLinkForm((prev) => ({ ...prev, category: e.target.value }))}
+            >
+              {LINK_CATEGORIES.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
+            </select>
+            <input
+              required
+              placeholder="Title"
+              value={linkForm.title}
+              onChange={(e) => setLinkForm((prev) => ({ ...prev, title: e.target.value }))}
+            />
+            <input
+              placeholder="Notes"
+              value={linkForm.notes}
+              onChange={(e) => setLinkForm((prev) => ({ ...prev, notes: e.target.value }))}
+            />
+            <div className="tag-list">
+              {tags.map((tag) => (
+                <button
+                  type="button"
+                  key={`link-tag-${tag.id}`}
+                  onClick={() => toggleLinkTag(tag.id)}
+                  className={linkForm.tag_ids.includes(tag.id) ? "tag active" : "tag"}
+                >
+                  {tag.name}
+                </button>
+              ))}
+            </div>
+            <button type="submit">Create Link</button>
+          </form>
+        </article>
       </section>
 
       <section className="card">
@@ -261,6 +377,38 @@ export default function App() {
                   <td>{kit.series}</td>
                   <td>{String(kit.build_status).replace("BuildStatus.", "")}</td>
                   <td>{kit.purchase_price ? `$${Number(kit.purchase_price).toFixed(2)}` : "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="card">
+        <h2>Links</h2>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Title</th>
+                <th>Category</th>
+                <th>URL</th>
+                <th>Kit ID</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {links.map((link) => (
+                <tr key={link.id}>
+                  <td>{link.title}</td>
+                  <td>{link.category}</td>
+                  <td><a href={link.url} target="_blank" rel="noreferrer">Open</a></td>
+                  <td>{link.kit_id}</td>
+                  <td>
+                    <button type="button" className="btn-danger" onClick={() => removeLink(link.id)}>
+                      Delete
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
