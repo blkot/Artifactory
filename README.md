@@ -74,6 +74,10 @@ Recommended policy by environment:
 - Staging: `REQUIRE_AUTH_FOR_READS=true`, `REQUIRE_AUTH_FOR_WRITES=true`
 - Production: `REQUIRE_AUTH_FOR_READS=true`, `REQUIRE_AUTH_FOR_WRITES=true`
 
+Pagination:
+- `API_PAGE_SIZE_DEFAULT`: default list/search page size
+- `API_PAGE_SIZE_MAX`: maximum allowed `limit` query parameter
+
 ## Observability Endpoints
 - `GET /health` liveness shortcut
 - `GET /health/live` liveness check

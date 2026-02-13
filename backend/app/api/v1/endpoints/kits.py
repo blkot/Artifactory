@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_read_access, require_write_access
+from app.core.config import get_settings
 from app.crud.build_log import create_for_kit, list_by_kit
 from app.crud.kit import create_kit, delete_kit, get_kit, list_kits, update_kit
 from app.crud.tag import get_tags_by_ids
@@ -11,6 +12,7 @@ from app.schemas.kit import KitCreate, KitListResponse, KitRead, KitUpdate
 from app.services.search_service import SearchService
 
 router = APIRouter(prefix="/kits", tags=["kits"])
+settings = get_settings()
 
 
 @router.get(
@@ -22,7 +24,7 @@ router = APIRouter(prefix="/kits", tags=["kits"])
 )
 def get_kits(
     skip: int = 0,
-    limit: int = Query(default=20, le=100),
+    limit: int = Query(default=settings.api_page_size_default, le=settings.api_page_size_max),
     db: Session = Depends(get_db),
     _auth=Depends(require_read_access),
 ):
@@ -66,7 +68,7 @@ def search_kits(
     scale: str | None = None,
     tag: str | None = None,
     skip: int = 0,
-    limit: int = Query(default=20, le=100),
+    limit: int = Query(default=settings.api_page_size_default, le=settings.api_page_size_max),
     db: Session = Depends(get_db),
     _auth=Depends(require_read_access),
 ):

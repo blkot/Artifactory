@@ -16,6 +16,8 @@ class Settings(BaseSettings):
 
     host: str = "0.0.0.0"
     port: int = 8000
+    api_page_size_default: int = 20
+    api_page_size_max: int = 100
 
     database_url: str = "sqlite:///./data/artifactory.db"
 
@@ -109,6 +111,11 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_production_security(self) -> "Settings":
+        if self.api_page_size_default <= 0:
+            raise ValueError("API_PAGE_SIZE_DEFAULT must be > 0")
+        if self.api_page_size_max < self.api_page_size_default:
+            raise ValueError("API_PAGE_SIZE_MAX must be >= API_PAGE_SIZE_DEFAULT")
+
         if self.environment.lower() != "production":
             return self
 

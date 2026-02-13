@@ -1,3 +1,6 @@
+from app.core.config import get_settings
+
+
 def test_kits_crud_and_search(client) -> None:
     tag = client.post("/api/v1/tags", json={"name": "weathering", "color": "#123456"})
     assert tag.status_code == 201
@@ -59,4 +62,10 @@ def test_kit_validation_purchase_price(client) -> None:
         "tag_ids": [],
     }
     response = client.post("/api/v1/kits", json=payload)
+    assert response.status_code == 422
+
+
+def test_kits_limit_respects_config_max(client) -> None:
+    settings = get_settings()
+    response = client.get("/api/v1/kits", params={"limit": settings.api_page_size_max + 1})
     assert response.status_code == 422
