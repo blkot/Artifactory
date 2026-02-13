@@ -44,7 +44,25 @@ class KitBase(BaseModel):
 
 
 class KitCreate(KitBase):
-    pass
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "name": "RG God Gundam",
+                    "grade": "RG",
+                    "series": "Mobile Fighter G Gundam",
+                    "brand": "Bandai",
+                    "scale": "1/144",
+                    "kit_number": "RG-37",
+                    "purchase_date": "2026-02-01",
+                    "purchase_price": 35.99,
+                    "purchase_shop": "Local Hobby Shop",
+                    "build_status": "NEW",
+                    "tag_ids": [1, 2],
+                }
+            ]
+        }
+    )
 
 
 class KitUpdate(BaseModel):
@@ -85,6 +103,18 @@ class KitUpdate(BaseModel):
         if "/" not in value:
             raise ValueError("scale must look like '1/144'")
         return value
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "build_status": "IN_PROGRESS",
+                    "purchase_shop": "Online Market",
+                    "tag_ids": [3],
+                }
+            ]
+        }
+    )
 
 
 class KitRead(BaseModel):

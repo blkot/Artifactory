@@ -26,6 +26,18 @@ class UserCreate(BaseModel):
             raise ValueError("password must contain uppercase, lowercase, and digit")
         return value
 
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "username": "builder01",
+                    "email": "builder01@example.com",
+                    "password": "StrongPass1",
+                }
+            ]
+        }
+    )
+
 
 class UserRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -40,3 +52,9 @@ class UserRead(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [{"access_token": "eyJhbGciOi...", "token_type": "bearer"}]
+        }
+    )

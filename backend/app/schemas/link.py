@@ -16,7 +16,20 @@ class LinkBase(BaseModel):
 
 
 class LinkCreate(LinkBase):
-    pass
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "kit_id": 1,
+                    "url": "https://example.com/review",
+                    "category": "REVIEW",
+                    "title": "Detailed Build Review",
+                    "notes": "Useful panel lining tips.",
+                    "tag_ids": [1],
+                }
+            ]
+        }
+    )
 
 
 class LinkUpdate(BaseModel):
@@ -25,6 +38,10 @@ class LinkUpdate(BaseModel):
     title: str | None = None
     notes: str | None = None
     tag_ids: list[int] | None = None
+
+    model_config = ConfigDict(
+        json_schema_extra={"examples": [{"title": "Updated review title", "tag_ids": []}]}
+    )
 
 
 class LinkRead(BaseModel):

@@ -36,7 +36,17 @@ for folder in [
 
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title=settings.app_name, version=settings.app_version, debug=settings.debug)
+app = FastAPI(
+    title=settings.app_name,
+    version=settings.app_version,
+    debug=settings.debug,
+    description=(
+        "Artifactory API for managing model kits, build progress, assets, links, tags, "
+        "authentication, and collection statistics.\n\n"
+        "Auth: use `POST /api/v1/auth/login` to obtain a bearer token, then send "
+        "`Authorization: Bearer <token>` for protected endpoints."
+    ),
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -107,17 +117,17 @@ async def observability_middleware(request, call_next):
         )
 
 
-@app.get("/health")
+@app.get("/health", summary="Liveness shortcut", description="Simple liveness probe.")
 def health() -> dict[str, str]:
     return {"status": "ok", "check": "liveness"}
 
 
-@app.get("/health/live")
+@app.get("/health/live", summary="Liveness check", description="Container/process is alive.")
 def health_live() -> dict[str, str]:
     return {"status": "ok", "check": "liveness"}
 
 
-@app.get("/health/ready")
+@app.get("/health/ready", summary="Readiness check", description="Readiness probe with database ping.")
 def health_ready():
     db = SessionLocal()
     try:
@@ -129,7 +139,7 @@ def health_ready():
     return {"status": "ok", "check": "readiness"}
 
 
-@app.get("/metrics")
+@app.get("/metrics", summary="Prometheus metrics", description="Operational counters in Prometheus text format.")
 def metrics() -> PlainTextResponse:
     return PlainTextResponse(app.state.metrics.render_prometheus(), media_type="text/plain; version=0.0.4")
 

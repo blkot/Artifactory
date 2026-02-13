@@ -9,12 +9,25 @@ from app.schemas.tag import TagCreate, TagRead
 router = APIRouter(prefix="/tags", tags=["tags"])
 
 
-@router.get("", response_model=list[TagRead])
+@router.get(
+    "",
+    response_model=list[TagRead],
+    summary="List tags",
+    description="List all tags used for kits and links.",
+    responses={401: {"description": "Authentication required"}},
+)
 def get_tags(db: Session = Depends(get_db), _auth=Depends(require_read_access)) -> list[TagRead]:
     return list_tags(db)
 
 
-@router.post("", response_model=TagRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=TagRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create tag",
+    description="Create a new tag for categorization.",
+    responses={400: {"description": "Tag already exists"}, 401: {"description": "Authentication required"}},
+)
 def post_tag(
     payload: TagCreate,
     db: Session = Depends(get_db),

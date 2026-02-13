@@ -40,6 +40,23 @@ npm run dev
 Backend docs: `http://localhost:8000/docs`
 Frontend: `http://localhost:5173`
 
+## Auth Flow Example
+```bash
+# 1) Register
+curl -X POST "http://localhost:8000/api/v1/auth/register" \
+  -H "Content-Type: application/json" \
+  -d '{"username":"builder01","email":"builder01@example.com","password":"StrongPass1"}'
+
+# 2) Login (get token)
+TOKEN=$(curl -s -X POST "http://localhost:8000/api/v1/auth/login" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "username=builder01&password=StrongPass1" | jq -r '.access_token')
+
+# 3) Call protected endpoint
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8000/api/v1/kits"
+```
+
 ## Environment Profiles
 - Development template: `backend/.env.development.example`
 - Production template: `backend/.env.production.example`

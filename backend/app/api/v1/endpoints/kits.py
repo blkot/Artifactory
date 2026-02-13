@@ -13,7 +13,13 @@ from app.services.search_service import SearchService
 router = APIRouter(prefix="/kits", tags=["kits"])
 
 
-@router.get("", response_model=KitListResponse)
+@router.get(
+    "",
+    response_model=KitListResponse,
+    summary="List kits",
+    description="List kits with pagination.",
+    responses={401: {"description": "Authentication required"}},
+)
 def get_kits(
     skip: int = 0,
     limit: int = Query(default=20, le=100),
@@ -24,7 +30,14 @@ def get_kits(
     return KitListResponse(items=items, total=total)
 
 
-@router.post("", response_model=KitRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=KitRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create kit",
+    description="Create a new model kit record.",
+    responses={401: {"description": "Authentication required"}},
+)
 def post_kit(
     payload: KitCreate,
     db: Session = Depends(get_db),
@@ -37,7 +50,13 @@ def post_kit(
     return kit
 
 
-@router.get("/search", response_model=KitListResponse)
+@router.get(
+    "/search",
+    response_model=KitListResponse,
+    summary="Search kits",
+    description="Search kits by text and filters (grade, brand, series, status, scale, tag).",
+    responses={401: {"description": "Authentication required"}},
+)
 def search_kits(
     q: str | None = None,
     grade: str | None = None,
@@ -65,7 +84,13 @@ def search_kits(
     return KitListResponse(items=items, total=total)
 
 
-@router.get("/{kit_id}", response_model=KitRead)
+@router.get(
+    "/{kit_id}",
+    response_model=KitRead,
+    summary="Get kit detail",
+    description="Get one kit by ID.",
+    responses={401: {"description": "Authentication required"}, 404: {"description": "Kit not found"}},
+)
 def get_kit_detail(
     kit_id: int,
     db: Session = Depends(get_db),
@@ -77,7 +102,13 @@ def get_kit_detail(
     return kit
 
 
-@router.put("/{kit_id}", response_model=KitRead)
+@router.put(
+    "/{kit_id}",
+    response_model=KitRead,
+    summary="Update kit",
+    description="Update fields of an existing kit.",
+    responses={401: {"description": "Authentication required"}, 404: {"description": "Kit not found"}},
+)
 def put_kit(
     kit_id: int,
     payload: KitUpdate,
@@ -97,7 +128,13 @@ def put_kit(
     return kit
 
 
-@router.delete("/{kit_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{kit_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete kit",
+    description="Delete a kit and associated dependent records.",
+    responses={401: {"description": "Authentication required"}, 404: {"description": "Kit not found"}},
+)
 def remove_kit(
     kit_id: int,
     db: Session = Depends(get_db),
@@ -111,7 +148,13 @@ def remove_kit(
     db.commit()
 
 
-@router.get("/{kit_id}/timeline", response_model=list[BuildLogRead])
+@router.get(
+    "/{kit_id}/timeline",
+    response_model=list[BuildLogRead],
+    summary="Get build timeline",
+    description="Return build timeline entries for a kit.",
+    responses={401: {"description": "Authentication required"}, 404: {"description": "Kit not found"}},
+)
 def get_timeline(
     kit_id: int,
     db: Session = Depends(get_db),
@@ -122,7 +165,14 @@ def get_timeline(
     return list_by_kit(db, kit_id)
 
 
-@router.post("/{kit_id}/timeline", response_model=BuildLogRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{kit_id}/timeline",
+    response_model=BuildLogRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create build timeline entry",
+    description="Append a build timeline status entry for a kit.",
+    responses={401: {"description": "Authentication required"}, 404: {"description": "Kit not found"}},
+)
 def post_timeline(
     kit_id: int,
     payload: BuildLogCreate,

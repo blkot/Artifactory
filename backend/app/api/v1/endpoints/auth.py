@@ -15,7 +15,14 @@ from app.schemas.auth import Token, UserCreate, UserRead
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register",
+    response_model=UserRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Register user",
+    description="Create a user account for API authentication.",
+    responses={400: {"description": "Username/email already exists"}},
+)
 def register(payload: UserCreate, db: Session = Depends(get_db)) -> User:
     if get_by_username(db, payload.username):
         raise HTTPException(status_code=400, detail="Username already exists")
@@ -24,7 +31,13 @@ def register(payload: UserCreate, db: Session = Depends(get_db)) -> User:
     return create_user(db, payload)
 
 
-@router.post("/login", response_model=Token)
+@router.post(
+    "/login",
+    response_model=Token,
+    summary="Login",
+    description="Authenticate with username/password and return a JWT access token.",
+    responses={401: {"description": "Invalid credentials"}},
+)
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)) -> Token:
     user = get_by_username(db, form_data.username)
     if not user or not verify_password(form_data.password, user.hashed_password):
@@ -38,6 +51,12 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     return Token(access_token=access_token)
 
 
-@router.get("/me", response_model=UserRead)
+@router.get(
+    "/me",
+    response_model=UserRead,
+    summary="Current user",
+    description="Get the currently authenticated user from bearer token.",
+    responses={401: {"description": "Not authenticated"}},
+)
 def me(current_user: User = Depends(get_current_user)) -> User:
     return current_user

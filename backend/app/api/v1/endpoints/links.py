@@ -12,12 +12,25 @@ from app.schemas.link import LinkCreate, LinkRead, LinkUpdate
 router = APIRouter(prefix="/links", tags=["links"])
 
 
-@router.get("", response_model=list[LinkRead])
+@router.get(
+    "",
+    response_model=list[LinkRead],
+    summary="List links",
+    description="List reference links across kits.",
+    responses={401: {"description": "Authentication required"}},
+)
 def get_links(db: Session = Depends(get_db), _auth=Depends(require_read_access)) -> list[LinkRead]:
     return list_links(db)
 
 
-@router.post("", response_model=LinkRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=LinkRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create link",
+    description="Create a new reference link for a kit.",
+    responses={401: {"description": "Authentication required"}, 404: {"description": "Kit not found"}},
+)
 def post_link(
     payload: LinkCreate,
     db: Session = Depends(get_db),
@@ -33,7 +46,13 @@ def post_link(
     return link
 
 
-@router.put("/{link_id}", response_model=LinkRead)
+@router.put(
+    "/{link_id}",
+    response_model=LinkRead,
+    summary="Update link",
+    description="Update an existing link.",
+    responses={401: {"description": "Authentication required"}, 404: {"description": "Link not found"}},
+)
 def put_link(
     link_id: int,
     payload: LinkUpdate,
@@ -53,7 +72,13 @@ def put_link(
     return link
 
 
-@router.delete("/{link_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{link_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete link",
+    description="Delete a reference link.",
+    responses={401: {"description": "Authentication required"}, 404: {"description": "Link not found"}},
+)
 def remove_link(
     link_id: int,
     db: Session = Depends(get_db),

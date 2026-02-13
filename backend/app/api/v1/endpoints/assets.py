@@ -15,7 +15,14 @@ from app.services.asset_service import AssetService
 router = APIRouter(prefix="/assets", tags=["assets"])
 
 
-@router.post("", response_model=AssetRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=AssetRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Upload asset",
+    description="Upload an asset file for a kit (multipart/form-data).",
+    responses={400: {"description": "Invalid file"}, 401: {"description": "Authentication required"}},
+)
 async def upload_asset(
     kit_id: int = Form(...),
     type: AssetType = Form(...),
@@ -34,7 +41,13 @@ async def upload_asset(
     )
 
 
-@router.get("/{asset_id}", response_model=AssetRead)
+@router.get(
+    "/{asset_id}",
+    response_model=AssetRead,
+    summary="Get asset metadata",
+    description="Return metadata for one asset.",
+    responses={401: {"description": "Authentication required"}, 404: {"description": "Asset not found"}},
+)
 def get_asset_metadata(
     asset_id: int,
     db: Session = Depends(get_db),
@@ -46,7 +59,12 @@ def get_asset_metadata(
     return asset
 
 
-@router.get("/{asset_id}/file")
+@router.get(
+    "/{asset_id}/file",
+    summary="Download asset file",
+    description="Download or stream the original asset file.",
+    responses={401: {"description": "Authentication required"}, 404: {"description": "Asset/file not found"}},
+)
 def get_asset_file(
     asset_id: int,
     db: Session = Depends(get_db),
@@ -62,7 +80,13 @@ def get_asset_file(
     return FileResponse(path=path)
 
 
-@router.delete("/{asset_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{asset_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete asset",
+    description="Delete an asset record and underlying file(s).",
+    responses={401: {"description": "Authentication required"}, 404: {"description": "Asset not found"}},
+)
 def remove_asset(
     asset_id: int,
     db: Session = Depends(get_db),
