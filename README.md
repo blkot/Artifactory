@@ -52,6 +52,11 @@ Frontend: `http://localhost:5173`
 - `RATE_LIMIT_WINDOW_SECONDS`: rate-limit window size
 - `RATE_LIMIT_EXCLUDE_PATHS`: paths excluded from limiting
 
+Recommended policy by environment:
+- Development: `REQUIRE_AUTH_FOR_READS=false`, `REQUIRE_AUTH_FOR_WRITES=false`
+- Staging: `REQUIRE_AUTH_FOR_READS=true`, `REQUIRE_AUTH_FOR_WRITES=true`
+- Production: `REQUIRE_AUTH_FOR_READS=true`, `REQUIRE_AUTH_FOR_WRITES=true`
+
 ## Observability Endpoints
 - `GET /health` liveness shortcut
 - `GET /health/live` liveness check

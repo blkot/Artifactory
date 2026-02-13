@@ -1,4 +1,5 @@
 from collections.abc import Generator
+from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -99,3 +100,24 @@ def client(db_session: Session) -> Generator[TestClient, None, None]:
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def auth_headers(client: TestClient) -> dict[str, str]:
+    username = f"user_{uuid4().hex[:8]}"
+    email = f"{username}@example.com"
+    password = "StrongPass1"
+
+    register = client.post(
+        "/api/v1/auth/register",
+        json={"username": username, "email": email, "password": password},
+    )
+    assert register.status_code == 201
+
+    login = client.post(
+        "/api/v1/auth/login",
+        data={"username": username, "password": password},
+    )
+    assert login.status_code == 200
+    token = login.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
