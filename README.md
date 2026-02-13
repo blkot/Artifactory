@@ -40,6 +40,18 @@ npm run dev
 Backend docs: `http://localhost:8000/docs`
 Frontend: `http://localhost:5173`
 
+## Environment Profiles
+- Development template: `backend/.env.development.example`
+- Production template: `backend/.env.production.example`
+
+## Security Toggles
+- `REQUIRE_AUTH_FOR_READS`: require JWT for read endpoints
+- `REQUIRE_AUTH_FOR_WRITES`: require JWT for create/update/delete endpoints
+- `RATE_LIMIT_ENABLED`: enable in-memory request rate limiting
+- `RATE_LIMIT_REQUESTS`: requests allowed within the time window
+- `RATE_LIMIT_WINDOW_SECONDS`: rate-limit window size
+- `RATE_LIMIT_EXCLUDE_PATHS`: paths excluded from limiting
+
 ## Docker
 ```bash
 docker compose up --build

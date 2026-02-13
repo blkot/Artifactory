@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
+from app.api.deps import require_read_access, require_write_access
 from app.api.exceptions import KitNotFoundException, LinkNotFoundException
 from app.crud.kit import get_kit
 from app.crud.link import create_link, delete_link, get_link, list_links, update_link
@@ -12,12 +13,16 @@ router = APIRouter(prefix="/links", tags=["links"])
 
 
 @router.get("", response_model=list[LinkRead])
-def get_links(db: Session = Depends(get_db)) -> list[LinkRead]:
+def get_links(db: Session = Depends(get_db), _auth=Depends(require_read_access)) -> list[LinkRead]:
     return list_links(db)
 
 
 @router.post("", response_model=LinkRead, status_code=status.HTTP_201_CREATED)
-def post_link(payload: LinkCreate, db: Session = Depends(get_db)) -> LinkRead:
+def post_link(
+    payload: LinkCreate,
+    db: Session = Depends(get_db),
+    _auth=Depends(require_write_access),
+) -> LinkRead:
     if not get_kit(db, payload.kit_id):
         raise KitNotFoundException(payload.kit_id)
 
@@ -29,7 +34,12 @@ def post_link(payload: LinkCreate, db: Session = Depends(get_db)) -> LinkRead:
 
 
 @router.put("/{link_id}", response_model=LinkRead)
-def put_link(link_id: int, payload: LinkUpdate, db: Session = Depends(get_db)) -> LinkRead:
+def put_link(
+    link_id: int,
+    payload: LinkUpdate,
+    db: Session = Depends(get_db),
+    _auth=Depends(require_write_access),
+) -> LinkRead:
     link = get_link(db, link_id)
     if not link:
         raise LinkNotFoundException(link_id)
@@ -44,7 +54,11 @@ def put_link(link_id: int, payload: LinkUpdate, db: Session = Depends(get_db)) -
 
 
 @router.delete("/{link_id}", status_code=status.HTTP_204_NO_CONTENT)
-def remove_link(link_id: int, db: Session = Depends(get_db)):
+def remove_link(
+    link_id: int,
+    db: Session = Depends(get_db),
+    _auth=Depends(require_write_access),
+):
     link = get_link(db, link_id)
     if not link:
         raise LinkNotFoundException(link_id)

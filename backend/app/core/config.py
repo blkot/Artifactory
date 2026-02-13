@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Annotated
 from urllib.parse import urlparse
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -40,6 +40,14 @@ class Settings(BaseSettings):
     algorithm: str = "HS256"
 
     log_level: str = "INFO"
+    require_auth_for_reads: bool = False
+    require_auth_for_writes: bool = False
+    rate_limit_enabled: bool = True
+    rate_limit_requests: int = 120
+    rate_limit_window_seconds: int = 60
+    rate_limit_exclude_paths: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: ["/health", "/docs", "/redoc", "/openapi.json"]
+    )
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
@@ -67,6 +75,7 @@ class Settings(BaseSettings):
         "allowed_video_types",
         "allowed_doc_types",
         "cors_origins",
+        "rate_limit_exclude_paths",
         mode="before",
     )
     @classmethod
@@ -85,6 +94,19 @@ class Settings(BaseSettings):
             elif parsed.hostname == "127.0.0.1":
                 expanded.add(origin.replace("127.0.0.1", "localhost"))
         return sorted(expanded)
+
+    @model_validator(mode="after")
+    def validate_production_security(self) -> "Settings":
+        if self.environment.lower() != "production":
+            return self
+
+        if self.debug:
+            raise ValueError("DEBUG must be false in production")
+        if self.secret_key == "change-me-in-production":
+            raise ValueError("SECRET_KEY must be changed in production")
+        if not self.require_auth_for_writes:
+            raise ValueError("REQUIRE_AUTH_FOR_WRITES must be true in production")
+        return self
 
 
 @lru_cache

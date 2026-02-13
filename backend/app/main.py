@@ -11,6 +11,7 @@ from app.api.exceptions import AppException
 from app.api.v1.api import api_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
+from app.core.rate_limit import InMemoryRateLimiter
 from app.db import Base, engine
 from app import models  # noqa: F401
 
@@ -37,6 +38,42 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.state.rate_limiter = InMemoryRateLimiter(
+    limit=settings.rate_limit_requests,
+    window_seconds=settings.rate_limit_window_seconds,
+)
+
+
+@app.middleware("http")
+async def rate_limit_middleware(request, call_next):
+    if not settings.rate_limit_enabled:
+        return await call_next(request)
+
+    path = request.url.path
+    if path in settings.rate_limit_exclude_paths or request.method == "OPTIONS":
+        return await call_next(request)
+
+    client_ip = request.client.host if request.client else "unknown"
+    key = f"{client_ip}:{path}"
+    allowed, retry_after = app.state.rate_limiter.allow(key)
+    if not allowed:
+        return JSONResponse(
+            status_code=429,
+            headers={"Retry-After": str(retry_after)},
+            content={
+                "error": "rate_limit_exceeded",
+                "message": "Too many requests",
+                "details": {
+                    "limit": settings.rate_limit_requests,
+                    "window_seconds": settings.rate_limit_window_seconds,
+                    "retry_after": retry_after,
+                },
+            },
+        )
+
+    response = await call_next(request)
+    response.headers["X-RateLimit-Limit"] = str(settings.rate_limit_requests)
+    return response
 
 
 @app.get("/health")

@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, File, Form, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
+from app.api.deps import require_read_access, require_write_access
 from app.api.exceptions import AssetNotFoundException
 from app.crud.asset import get_asset
 from app.db import get_db
@@ -22,6 +23,7 @@ async def upload_asset(
     is_external_reference: bool = Form(default=False),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
+    _auth=Depends(require_write_access),
 ):
     return await AssetService(db).create_asset(
         kit_id=kit_id,
@@ -33,7 +35,11 @@ async def upload_asset(
 
 
 @router.get("/{asset_id}", response_model=AssetRead)
-def get_asset_metadata(asset_id: int, db: Session = Depends(get_db)) -> AssetRead:
+def get_asset_metadata(
+    asset_id: int,
+    db: Session = Depends(get_db),
+    _auth=Depends(require_read_access),
+) -> AssetRead:
     asset = get_asset(db, asset_id)
     if not asset:
         raise AssetNotFoundException(asset_id)
@@ -41,7 +47,11 @@ def get_asset_metadata(asset_id: int, db: Session = Depends(get_db)) -> AssetRea
 
 
 @router.get("/{asset_id}/file")
-def get_asset_file(asset_id: int, db: Session = Depends(get_db)):
+def get_asset_file(
+    asset_id: int,
+    db: Session = Depends(get_db),
+    _auth=Depends(require_read_access),
+):
     asset = get_asset(db, asset_id)
     if not asset:
         raise AssetNotFoundException(asset_id)
@@ -53,7 +63,11 @@ def get_asset_file(asset_id: int, db: Session = Depends(get_db)):
 
 
 @router.delete("/{asset_id}", status_code=status.HTTP_204_NO_CONTENT)
-def remove_asset(asset_id: int, db: Session = Depends(get_db)):
+def remove_asset(
+    asset_id: int,
+    db: Session = Depends(get_db),
+    _auth=Depends(require_write_access),
+):
     asset = get_asset(db, asset_id)
     if not asset:
         raise AssetNotFoundException(asset_id)
