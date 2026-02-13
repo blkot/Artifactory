@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { api } from "./api/client";
+import { api, ApiError, loadTokenFromStorage, setAuthToken } from "./api/client";
 
 const GRADES = ["HG", "RG", "MG", "PG", "SD", "CUSTOM"];
 const BUILD_STATUS = ["NEW", "OPENED", "IN_PROGRESS", "COMPLETED"];
@@ -23,6 +23,10 @@ export default function App() {
   const [kits, setKits] = useState([]);
   const [tags, setTags] = useState([]);
   const [stats, setStats] = useState(null);
+  const [token, setToken] = useState(() => loadTokenFromStorage());
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [authMessage, setAuthMessage] = useState("");
   const [kitForm, setKitForm] = useState(emptyKit);
   const [tagForm, setTagForm] = useState({ name: "", color: "#6495ed" });
   const [error, setError] = useState("");
@@ -36,8 +40,19 @@ export default function App() {
       setKits(kitRes.items || []);
       setTags(tagRes || []);
       setStats(statsRes);
+      setAuthMessage(token ? "Authenticated session active." : "");
     } catch (err) {
-      setError(err.message);
+      if (err instanceof ApiError && err.status === 401) {
+        setAuthMessage("Authentication required for this environment. Please log in.");
+      } else if (err instanceof ApiError && err.status === 429) {
+        setError(
+          err.retryAfter
+            ? `Rate limit exceeded. Retry after ${err.retryAfter}s.`
+            : "Rate limit exceeded."
+        );
+      } else {
+        setError(err.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -67,6 +82,9 @@ export default function App() {
       setKitForm(emptyKit);
       await loadData();
     } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        setAuthMessage("You must log in to create kits.");
+      }
       setError(err.message);
     }
   }
@@ -79,8 +97,34 @@ export default function App() {
       setTagForm({ name: "", color: "#6495ed" });
       await loadData();
     } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        setAuthMessage("You must log in to create tags.");
+      }
       setError(err.message);
     }
+  }
+
+  async function submitLogin(event) {
+    event.preventDefault();
+    setAuthMessage("");
+    setError("");
+    try {
+      const result = await api.login(username, password);
+      setAuthToken(result.access_token);
+      setToken(result.access_token);
+      setPassword("");
+      setAuthMessage("Login successful.");
+      await loadData();
+    } catch (err) {
+      setAuthMessage("");
+      setError(err.message || "Login failed");
+    }
+  }
+
+  function logout() {
+    setAuthToken(null);
+    setToken(null);
+    setAuthMessage("Logged out.");
   }
 
   function updateKitField(field, value) {
@@ -104,6 +148,34 @@ export default function App() {
         </div>
         <button type="button" onClick={loadData} disabled={loading}>{loading ? "Refreshing..." : "Refresh"}</button>
       </header>
+
+      <section className="card auth-card">
+        <h2>Authentication</h2>
+        {token ? (
+          <div className="auth-row">
+            <p className="auth-ok">Token loaded</p>
+            <button type="button" onClick={logout}>Log Out</button>
+          </div>
+        ) : (
+          <form onSubmit={submitLogin} className="form auth-form">
+            <input
+              required
+              placeholder="Username"
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
+            />
+            <input
+              required
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+            />
+            <button type="submit">Log In</button>
+          </form>
+        )}
+        {authMessage ? <p className="notice">{authMessage}</p> : null}
+      </section>
 
       {error ? <p className="error">{error}</p> : null}
 
