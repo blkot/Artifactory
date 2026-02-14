@@ -69,3 +69,63 @@ def test_kits_limit_respects_config_max(client) -> None:
     settings = get_settings()
     response = client.get("/api/v1/kits", params={"limit": settings.api_page_size_max + 1})
     assert response.status_code == 422
+
+
+def test_kits_search_supports_filters_and_pagination(client) -> None:
+    weathering = client.post("/api/v1/tags", json={"name": "weathering-search", "color": "#111111"})
+    panel = client.post("/api/v1/tags", json={"name": "panel-line", "color": "#222222"})
+    assert weathering.status_code == 201
+    assert panel.status_code == 201
+    weathering_id = weathering.json()["id"]
+    panel_id = panel.json()["id"]
+
+    kits = [
+        {
+            "name": "RG Nu Gundam",
+            "grade": "RG",
+            "series": "Universal Century",
+            "brand": "Bandai",
+            "scale": "1/144",
+            "build_status": "NEW",
+            "tag_ids": [weathering_id],
+        },
+        {
+            "name": "MG Barbatos",
+            "grade": "MG",
+            "series": "Iron-Blooded Orphans",
+            "brand": "Bandai",
+            "scale": "1/100",
+            "build_status": "IN_PROGRESS",
+            "tag_ids": [panel_id],
+        },
+        {
+            "name": "RG Sazabi",
+            "grade": "RG",
+            "series": "Universal Century",
+            "brand": "Bandai",
+            "scale": "1/144",
+            "build_status": "COMPLETED",
+            "tag_ids": [weathering_id, panel_id],
+        },
+    ]
+    for payload in kits:
+        create_response = client.post("/api/v1/kits", json=payload)
+        assert create_response.status_code == 201
+
+    filtered = client.get(
+        "/api/v1/kits/search",
+        params={"grade": "RG", "series": "Universal", "tag": "weathering-search"},
+    )
+    assert filtered.status_code == 200
+    filtered_payload = filtered.json()
+    assert filtered_payload["total"] == 2
+    assert all(item["grade"] == "RG" for item in filtered_payload["items"])
+
+    paged = client.get(
+        "/api/v1/kits/search",
+        params={"grade": "RG", "skip": 1, "limit": 1},
+    )
+    assert paged.status_code == 200
+    paged_payload = paged.json()
+    assert paged_payload["total"] == 2
+    assert len(paged_payload["items"]) == 1
