@@ -129,6 +129,12 @@ class Settings(BaseSettings):
             raise ValueError("SECRET_KEY must be changed in production")
         if not self.require_auth_for_writes:
             raise ValueError("REQUIRE_AUTH_FOR_WRITES must be true in production")
+        if not self.cors_origins:
+            raise ValueError("CORS_ORIGINS must include trusted origins in production")
+        if any(origin.strip() == "*" for origin in self.cors_origins):
+            raise ValueError("CORS_ORIGINS must not include wildcard '*' in production")
+        if any("localhost" in origin or "127.0.0.1" in origin for origin in self.cors_origins):
+            raise ValueError("CORS_ORIGINS must not include localhost origins in production")
         return self
 
 
