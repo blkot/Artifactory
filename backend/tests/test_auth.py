@@ -15,11 +15,29 @@ def test_register_login_me_flow(client) -> None:
         data={"username": "tester01", "password": "StrongPass1!"},
     )
     assert login_response.status_code == 200
-    token = login_response.json()["access_token"]
+    login_payload = login_response.json()
+    token = login_payload["access_token"]
+    refresh_token = login_payload["refresh_token"]
+    assert refresh_token
 
     me_response = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
     assert me_response.status_code == 200
     assert me_response.json()["username"] == "tester01"
+
+    refresh_response = client.post(
+        "/api/v1/auth/refresh",
+        json={"refresh_token": refresh_token},
+    )
+    assert refresh_response.status_code == 200
+    refreshed_payload = refresh_response.json()
+    assert refreshed_payload["access_token"]
+    assert refreshed_payload.get("refresh_token") is None
+
+    me_with_refresh = client.get(
+        "/api/v1/auth/me",
+        headers={"Authorization": f"Bearer {refresh_token}"},
+    )
+    assert me_with_refresh.status_code == 401
 
 
 def test_register_password_validation(client) -> None:
@@ -52,3 +70,8 @@ def test_register_password_requires_symbol_and_no_spaces(client) -> None:
         },
     )
     assert has_space.status_code == 422
+
+
+def test_refresh_rejects_invalid_token(client) -> None:
+    response = client.post("/api/v1/auth/refresh", json={"refresh_token": "invalid-token"})
+    assert response.status_code == 401

@@ -48,10 +48,21 @@ class UserRead(BaseModel):
 
 class Token(BaseModel):
     access_token: str
+    refresh_token: str | None = None
     token_type: str = "bearer"
 
     model_config = ConfigDict(
         json_schema_extra={
-            "examples": [{"access_token": "eyJhbGciOi...", "token_type": "bearer"}]
+            "examples": [
+                {
+                    "access_token": "eyJhbGciOi...access",
+                    "refresh_token": "eyJhbGciOi...refresh",
+                    "token_type": "bearer",
+                }
+            ]
         }
     )
+
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
