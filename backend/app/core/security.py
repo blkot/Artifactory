@@ -17,6 +17,26 @@ def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
 
+def validate_password_policy(password: str) -> str:
+    settings = get_settings()
+    if len(password) < settings.password_min_length:
+        raise ValueError(
+            f"password must be at least {settings.password_min_length} characters long"
+        )
+    if any(ch.isspace() for ch in password):
+        raise ValueError("password must not contain spaces")
+
+    has_upper = any(ch.isupper() for ch in password)
+    has_lower = any(ch.islower() for ch in password)
+    has_digit = any(ch.isdigit() for ch in password)
+    has_symbol = any(not ch.isalnum() for ch in password)
+    if not (has_upper and has_lower and has_digit and has_symbol):
+        raise ValueError(
+            "password must contain uppercase, lowercase, digit, and special character"
+        )
+    return password
+
+
 def create_access_token(subject: str, expires_delta: timedelta | None = None) -> str:
     settings = get_settings()
     expire = datetime.now(timezone.utc) + (

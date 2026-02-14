@@ -115,7 +115,7 @@ def client(db_session: Session) -> Generator[TestClient, None, None]:
 def auth_headers(client: TestClient) -> dict[str, str]:
     username = f"user_{uuid4().hex[:8]}"
     email = f"{username}@example.com"
-    password = "StrongPass1"
+    password = "StrongPass1!"
 
     register = client.post(
         "/api/v1/auth/register",

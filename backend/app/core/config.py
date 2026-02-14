@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     secret_key: str = "change-me-in-production"
     access_token_expire_minutes: int = 60
     algorithm: str = "HS256"
+    password_min_length: int = 12
 
     log_level: str = "INFO"
     require_auth_for_reads: bool = False
@@ -115,6 +116,8 @@ class Settings(BaseSettings):
             raise ValueError("API_PAGE_SIZE_DEFAULT must be > 0")
         if self.api_page_size_max < self.api_page_size_default:
             raise ValueError("API_PAGE_SIZE_MAX must be >= API_PAGE_SIZE_DEFAULT")
+        if self.password_min_length < 8:
+            raise ValueError("PASSWORD_MIN_LENGTH must be >= 8")
 
         if self.environment.lower() != "production":
             return self

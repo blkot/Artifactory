@@ -25,14 +25,14 @@ def test_require_auth_for_writes_toggle(client) -> None:
         json={
             "username": "secured_user",
             "email": "secured_user@example.com",
-            "password": "StrongPass1",
+            "password": "StrongPass1!",
         },
     )
     assert register.status_code == 201
 
     login = client.post(
         "/api/v1/auth/login",
-        data={"username": "secured_user", "password": "StrongPass1"},
+        data={"username": "secured_user", "password": "StrongPass1!"},
     )
     assert login.status_code == 200
     token = login.json()["access_token"]

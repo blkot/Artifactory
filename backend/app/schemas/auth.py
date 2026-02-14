@@ -2,6 +2,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
+from app.core.security import validate_password_policy
+
 
 class UserCreate(BaseModel):
     username: str = Field(min_length=3, max_length=64)
@@ -19,12 +21,7 @@ class UserCreate(BaseModel):
     @field_validator("password")
     @classmethod
     def validate_password_strength(cls, value: str) -> str:
-        has_upper = any(ch.isupper() for ch in value)
-        has_lower = any(ch.islower() for ch in value)
-        has_digit = any(ch.isdigit() for ch in value)
-        if not (has_upper and has_lower and has_digit):
-            raise ValueError("password must contain uppercase, lowercase, and digit")
-        return value
+        return validate_password_policy(value)
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -32,7 +29,7 @@ class UserCreate(BaseModel):
                 {
                     "username": "builder01",
                     "email": "builder01@example.com",
-                    "password": "StrongPass1",
+                    "password": "StrongPass1!",
                 }
             ]
         }
