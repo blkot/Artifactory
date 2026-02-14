@@ -5,6 +5,7 @@ import { api, ApiError, loadTokenFromStorage, setAuthToken } from "./api/client"
 const GRADES = ["HG", "RG", "MG", "PG", "SD", "CUSTOM"];
 const BUILD_STATUS = ["NEW", "OPENED", "IN_PROGRESS", "COMPLETED"];
 const LINK_CATEGORIES = ["BUILD_LOG", "REVIEW", "TUTORIAL", "GALLERY"];
+const ASSET_TYPES = ["BOX_ART", "MANUAL", "BUILD_PHOTO", "REFERENCE_IMAGE", "VIDEO", "DOCUMENT"];
 
 const emptyKit = {
   name: "",
@@ -22,6 +23,7 @@ const emptyKit = {
 
 export default function App() {
   const [kits, setKits] = useState([]);
+  const [assets, setAssets] = useState([]);
   const [links, setLinks] = useState([]);
   const [timeline, setTimeline] = useState([]);
   const [tags, setTags] = useState([]);
@@ -41,9 +43,16 @@ export default function App() {
     tag_ids: [],
   });
   const [timelineKitId, setTimelineKitId] = useState("");
+  const [assetKitId, setAssetKitId] = useState("");
   const [timelineForm, setTimelineForm] = useState({
     status: "IN_PROGRESS",
     notes: "",
+  });
+  const [assetForm, setAssetForm] = useState({
+    type: "DOCUMENT",
+    description: "",
+    is_external_reference: false,
+    file: null,
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -67,6 +76,9 @@ export default function App() {
       }
       if (!timelineKitId && (kitRes.items || []).length > 0) {
         setTimelineKitId(String(kitRes.items[0].id));
+      }
+      if (!assetKitId && (kitRes.items || []).length > 0) {
+        setAssetKitId(String(kitRes.items[0].id));
       }
       setAuthMessage(token ? "Authenticated session active." : "");
     } catch (err) {
@@ -108,6 +120,25 @@ export default function App() {
     }
     loadTimeline();
   }, [timelineKitId]);
+
+  useEffect(() => {
+    if (!assetKitId) {
+      setAssets([]);
+      return;
+    }
+    async function loadAssets() {
+      try {
+        const payload = await api.getAssets({ kitId: Number(assetKitId) });
+        setAssets(payload.items || []);
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 401) {
+          setAuthMessage("You must log in to view assets.");
+        }
+        setError(err.message);
+      }
+    }
+    loadAssets();
+  }, [assetKitId]);
 
   const statusMap = useMemo(() => {
     const map = {};
@@ -243,6 +274,51 @@ export default function App() {
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         setAuthMessage("You must log in to create timeline entries.");
+      }
+      setError(err.message);
+    }
+  }
+
+  async function submitAsset(event) {
+    event.preventDefault();
+    if (!assetKitId || !assetForm.file) {
+      setError("Please select a kit and file before uploading.");
+      return;
+    }
+    setError("");
+    try {
+      const formData = new FormData();
+      formData.set("kit_id", String(Number(assetKitId)));
+      formData.set("type", assetForm.type);
+      formData.set("description", assetForm.description);
+      formData.set("is_external_reference", String(assetForm.is_external_reference));
+      formData.set("file", assetForm.file);
+      await api.uploadAsset(formData);
+      setAssetForm((prev) => ({
+        ...prev,
+        description: "",
+        is_external_reference: false,
+        file: null,
+      }));
+      const payload = await api.getAssets({ kitId: Number(assetKitId) });
+      setAssets(payload.items || []);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        setAuthMessage("You must log in to manage assets.");
+      }
+      setError(err.message);
+    }
+  }
+
+  async function removeAsset(id) {
+    setError("");
+    try {
+      await api.deleteAsset(id);
+      const payload = await api.getAssets({ kitId: Number(assetKitId) });
+      setAssets(payload.items || []);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        setAuthMessage("You must log in to manage assets.");
       }
       setError(err.message);
     }
@@ -456,6 +532,90 @@ export default function App() {
                   </td>
                 </tr>
               ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="card">
+        <h2>Assets</h2>
+        <form onSubmit={submitAsset} className="form">
+          <select
+            required
+            value={assetKitId}
+            onChange={(e) => setAssetKitId(e.target.value)}
+          >
+            <option value="" disabled>Select kit</option>
+            {kits.map((kit) => <option key={`asset-kit-${kit.id}`} value={kit.id}>{kit.name}</option>)}
+          </select>
+          <select
+            value={assetForm.type}
+            onChange={(e) => setAssetForm((prev) => ({ ...prev, type: e.target.value }))}
+          >
+            {ASSET_TYPES.map((type) => <option key={`asset-type-${type}`} value={type}>{type}</option>)}
+          </select>
+          <input
+            placeholder="Asset description"
+            value={assetForm.description}
+            onChange={(e) => setAssetForm((prev) => ({ ...prev, description: e.target.value }))}
+          />
+          <label className="checkbox-row">
+            <input
+              type="checkbox"
+              checked={assetForm.is_external_reference}
+              onChange={(e) => setAssetForm((prev) => ({ ...prev, is_external_reference: e.target.checked }))}
+            />
+            External reference
+          </label>
+          <input
+            required
+            type="file"
+            onChange={(e) => setAssetForm((prev) => ({ ...prev, file: e.target.files?.[0] || null }))}
+          />
+          <button type="submit">Upload Asset</button>
+        </form>
+
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Preview</th>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Size</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {assets.map((asset) => (
+                <tr key={asset.id}>
+                  <td>
+                    {asset.mime_type.startsWith("image/") ? (
+                      <img
+                        src={api.assetFileUrl(asset.id)}
+                        alt={asset.original_filename}
+                        className="asset-preview"
+                      />
+                    ) : (
+                      <span className="muted">No preview</span>
+                    )}
+                  </td>
+                  <td>{asset.original_filename}</td>
+                  <td>{asset.type}</td>
+                  <td>{(asset.file_size / 1024).toFixed(1)} KB</td>
+                  <td className="actions-row">
+                    <a href={api.assetFileUrl(asset.id)} target="_blank" rel="noreferrer">Open</a>
+                    <button type="button" className="btn-danger" onClick={() => removeAsset(asset.id)}>
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {assets.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="muted">No assets for selected kit.</td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
         </div>

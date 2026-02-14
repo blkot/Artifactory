@@ -119,6 +119,17 @@ button {
   font-size: 0.95rem;
 }
 
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.checkbox-row input {
+  width: 1rem;
+  height: 1rem;
+}
+
 button {
   background: #3e4c59;
   color: #f0f4f8;
@@ -176,6 +187,24 @@ a {
 
 a:hover {
   text-decoration: underline;
+}
+
+.asset-preview {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 0.4rem;
+  border: 1px solid #bcccdc;
+}
+
+.actions-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.muted {
+  color: #627d98;
 }
 
 .error {
