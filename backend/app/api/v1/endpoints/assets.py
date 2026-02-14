@@ -1,18 +1,20 @@
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_read_access, require_write_access
 from app.api.exceptions import AssetNotFoundException
-from app.crud.asset import get_asset
+from app.core.config import get_settings
+from app.crud.asset import get_asset, list_assets
 from app.db import get_db
 from app.models.enums import AssetType
-from app.schemas.asset import AssetRead
+from app.schemas.asset import AssetListResponse, AssetRead
 from app.services.asset_service import AssetService
 
 router = APIRouter(prefix="/assets", tags=["assets"])
+settings = get_settings()
 
 
 @router.post(
@@ -39,6 +41,24 @@ async def upload_asset(
         description=description,
         is_external_reference=is_external_reference,
     )
+
+
+@router.get(
+    "",
+    response_model=AssetListResponse,
+    summary="List assets",
+    description="List assets with optional kit filter and pagination.",
+    responses={401: {"description": "Authentication required"}},
+)
+def get_assets(
+    kit_id: int | None = None,
+    skip: int = 0,
+    limit: int = Query(default=settings.api_page_size_default, le=settings.api_page_size_max),
+    db: Session = Depends(get_db),
+    _auth=Depends(require_read_access),
+) -> AssetListResponse:
+    items, total = list_assets(db, kit_id=kit_id, skip=skip, limit=limit)
+    return AssetListResponse(items=items, total=total)
 
 
 @router.get(

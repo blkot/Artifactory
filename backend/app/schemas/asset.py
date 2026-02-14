@@ -19,3 +19,8 @@ class AssetRead(BaseModel):
     description: str | None = None
     is_external_reference: bool
     created_at: datetime
+
+
+class AssetListResponse(BaseModel):
+    items: list[AssetRead]
+    total: int
