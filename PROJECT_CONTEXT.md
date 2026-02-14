@@ -43,9 +43,12 @@ Last updated: 2026-02-14
 - `707032f` Phase 5.8 frontend: add per-kit asset upload, list, preview, and delete UI
 - `a8c4af4` Phase 5.9 frontend: add kit search filters and server-side pagination UX
 - `79d0355` Phase 5.10 security: enforce stronger password policy and auth coverage
+- `0a63438` Phase 5.12 tests: add kit search filter and pagination API coverage
+- `403790b` Phase 5.11 auth: add refresh token flow and enforce access-token usage
+- `b6d635a` Phase 5.13 security: enforce production CORS restrictions with config tests
 
 ## 4) Validation Baseline (Current)
-- Backend tests: 23 passing
+- Backend tests: 28 passing
 - Frontend build: passing
 - Alembic cycle: passing (upgrade/downgrade/upgrade)
 - Release check script: `scripts/release_check.sh`
@@ -82,12 +85,12 @@ Last updated: 2026-02-14
   - `PASSWORD_MIN_LENGTH`
 
 ## 7) Next Recommended Items
-- Phase 5.11 Auth/token strategy:
-  - optional refresh token flow + explicit token revoke/denylist strategy
-- Phase 5.12 API tests expansion:
-  - add coverage for asset list/filter endpoint and kit search/pagination query combinations
-- Phase 5.13 Production hardening:
-  - stricter production CORS policy docs and deployment profile checks
+- Phase 5.14 Token lifecycle hardening:
+  - add refresh-token rotation and revoke/denylist strategy
+- Phase 5.15 Frontend auth UX:
+  - persist and use refresh token with silent access-token refresh
+- Phase 5.16 Documentation update:
+  - document `/api/v1/auth/refresh` flow and production CORS requirements
 
 ## 8) Quick Continue Commands
 - Full validation:
