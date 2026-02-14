@@ -207,6 +207,28 @@ a:hover {
   color: #627d98;
 }
 
+.filter-grid {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  align-items: end;
+}
+
+.inventory-meta {
+  margin: 0.7rem 0;
+}
+
+.pager-row {
+  margin-top: 0.8rem;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .error {
   background: #f8d7da;
   color: #721c24;

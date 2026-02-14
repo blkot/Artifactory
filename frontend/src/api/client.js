@@ -70,7 +70,21 @@ export async function request(path, options = {}) {
 }
 
 export const api = {
-  getKits: () => request("/kits"),
+  getKits: ({ skip = 0, limit = 20 } = {}) => {
+    const params = new URLSearchParams();
+    params.set("skip", String(skip));
+    params.set("limit", String(limit));
+    return request(`/kits?${params.toString()}`);
+  },
+  searchKits: (filters = {}) => {
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== null && value !== undefined && value !== "") {
+        params.set(key, String(value));
+      }
+    });
+    return request(`/kits/search?${params.toString()}`);
+  },
   createKit: (payload) => request("/kits", { method: "POST", body: JSON.stringify(payload) }),
   getAssets: ({ kitId = null, skip = 0, limit = 20 } = {}) => {
     const params = new URLSearchParams();

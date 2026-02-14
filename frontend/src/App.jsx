@@ -6,6 +6,17 @@ const GRADES = ["HG", "RG", "MG", "PG", "SD", "CUSTOM"];
 const BUILD_STATUS = ["NEW", "OPENED", "IN_PROGRESS", "COMPLETED"];
 const LINK_CATEGORIES = ["BUILD_LOG", "REVIEW", "TUTORIAL", "GALLERY"];
 const ASSET_TYPES = ["BOX_ART", "MANUAL", "BUILD_PHOTO", "REFERENCE_IMAGE", "VIDEO", "DOCUMENT"];
+const PAGE_SIZE = 10;
+
+const emptyKitFilters = {
+  q: "",
+  grade: "",
+  brand: "",
+  series: "",
+  build_status: "",
+  scale: "",
+  tag: "",
+};
 
 const emptyKit = {
   name: "",
@@ -54,32 +65,58 @@ export default function App() {
     is_external_reference: false,
     file: null,
   });
+  const [kitFilters, setKitFilters] = useState(emptyKitFilters);
+  const [kitPage, setKitPage] = useState(1);
+  const [kitTotal, setKitTotal] = useState(0);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const hasActiveKitFilters = useMemo(
+    () => Object.values(kitFilters).some((value) => String(value).trim().length > 0),
+    [kitFilters]
+  );
+
+  async function loadKits({
+    page = kitPage,
+    filters = kitFilters,
+    clearError = false,
+  } = {}) {
+    if (clearError) {
+      setError("");
+    }
+    const skip = Math.max(0, (page - 1) * PAGE_SIZE);
+    const requestFilters = { ...filters, skip, limit: PAGE_SIZE };
+    const payload = Object.values(filters).some((value) => String(value).trim().length > 0)
+      ? await api.searchKits(requestFilters)
+      : await api.getKits({ skip, limit: PAGE_SIZE });
+
+    setKits(payload.items || []);
+    setKitTotal(payload.total || 0);
+
+    if (!linkForm.kit_id && (payload.items || []).length > 0) {
+      setLinkForm((prev) => ({ ...prev, kit_id: String(payload.items[0].id) }));
+    }
+    if (!timelineKitId && (payload.items || []).length > 0) {
+      setTimelineKitId(String(payload.items[0].id));
+    }
+    if (!assetKitId && (payload.items || []).length > 0) {
+      setAssetKitId(String(payload.items[0].id));
+    }
+  }
 
   async function loadData() {
     setLoading(true);
     setError("");
     try {
-      const [kitRes, tagRes, statsRes, linkRes] = await Promise.all([
-        api.getKits(),
+      const [tagRes, statsRes, linkRes] = await Promise.all([
         api.getTags(),
         api.getStats(),
         api.getLinks(),
       ]);
-      setKits(kitRes.items || []);
       setTags(tagRes || []);
       setStats(statsRes);
       setLinks(linkRes || []);
-      if (!linkForm.kit_id && (kitRes.items || []).length > 0) {
-        setLinkForm((prev) => ({ ...prev, kit_id: String(kitRes.items[0].id) }));
-      }
-      if (!timelineKitId && (kitRes.items || []).length > 0) {
-        setTimelineKitId(String(kitRes.items[0].id));
-      }
-      if (!assetKitId && (kitRes.items || []).length > 0) {
-        setAssetKitId(String(kitRes.items[0].id));
-      }
+      await loadKits({ page: kitPage, filters: kitFilters });
       setAuthMessage(token ? "Authenticated session active." : "");
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
@@ -101,6 +138,21 @@ export default function App() {
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    async function refreshKits() {
+      try {
+        await loadKits();
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 401) {
+          setAuthMessage("Authentication required for this environment. Please log in.");
+        } else {
+          setError(err.message);
+        }
+      }
+    }
+    refreshKits();
+  }, [kitPage, kitFilters]);
 
   useEffect(() => {
     if (!timelineKitId) {
@@ -148,6 +200,10 @@ export default function App() {
     return map;
   }, [stats]);
 
+  const kitTotalPages = Math.max(1, Math.ceil(kitTotal / PAGE_SIZE));
+  const canGoPrevious = kitPage > 1;
+  const canGoNext = kitPage < kitTotalPages;
+
   async function submitKit(event) {
     event.preventDefault();
     setError("");
@@ -158,6 +214,7 @@ export default function App() {
         purchase_date: kitForm.purchase_date || null,
       });
       setKitForm(emptyKit);
+      await loadKits({ page: 1, filters: kitFilters, clearError: true });
       await loadData();
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
@@ -207,6 +264,30 @@ export default function App() {
 
   function updateKitField(field, value) {
     setKitForm((prev) => ({ ...prev, [field]: value }));
+  }
+
+  function updateKitFilter(field, value) {
+    setKitFilters((prev) => ({ ...prev, [field]: value }));
+  }
+
+  async function clearKitFilters() {
+    setKitFilters(emptyKitFilters);
+    setKitPage(1);
+    try {
+      await loadKits({ page: 1, filters: emptyKitFilters, clearError: true });
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function applyKitFilters(event) {
+    event.preventDefault();
+    setKitPage(1);
+    try {
+      await loadKits({ page: 1, filters: kitFilters, clearError: true });
+    } catch (err) {
+      setError(err.message);
+    }
   }
 
   function toggleTag(id) {
@@ -479,6 +560,51 @@ export default function App() {
 
       <section className="card">
         <h2>Kit Inventory</h2>
+        <form onSubmit={applyKitFilters} className="form filter-grid">
+          <input
+            placeholder="Search name"
+            value={kitFilters.q}
+            onChange={(e) => updateKitFilter("q", e.target.value)}
+          />
+          <select value={kitFilters.grade} onChange={(e) => updateKitFilter("grade", e.target.value)}>
+            <option value="">All grades</option>
+            {GRADES.map((grade) => <option key={`grade-filter-${grade}`} value={grade}>{grade}</option>)}
+          </select>
+          <select
+            value={kitFilters.build_status}
+            onChange={(e) => updateKitFilter("build_status", e.target.value)}
+          >
+            <option value="">All status</option>
+            {BUILD_STATUS.map((state) => <option key={`status-filter-${state}`} value={state}>{state}</option>)}
+          </select>
+          <input
+            placeholder="Brand"
+            value={kitFilters.brand}
+            onChange={(e) => updateKitFilter("brand", e.target.value)}
+          />
+          <input
+            placeholder="Series"
+            value={kitFilters.series}
+            onChange={(e) => updateKitFilter("series", e.target.value)}
+          />
+          <input
+            placeholder="Scale (e.g. 1/144)"
+            value={kitFilters.scale}
+            onChange={(e) => updateKitFilter("scale", e.target.value)}
+          />
+          <input
+            placeholder="Tag contains"
+            value={kitFilters.tag}
+            onChange={(e) => updateKitFilter("tag", e.target.value)}
+          />
+          <div className="actions-row">
+            <button type="submit">Apply Filters</button>
+            <button type="button" onClick={clearKitFilters}>Clear</button>
+          </div>
+        </form>
+        <p className="muted inventory-meta">
+          Showing {kits.length} of {kitTotal} kits {hasActiveKitFilters ? "(filtered)" : ""}
+        </p>
         <div className="table-wrap">
           <table>
             <thead>
@@ -500,8 +626,22 @@ export default function App() {
                   <td>{kit.purchase_price ? `$${Number(kit.purchase_price).toFixed(2)}` : "-"}</td>
                 </tr>
               ))}
+              {kits.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="muted">No kits found for current filters.</td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
+        </div>
+        <div className="pager-row">
+          <button type="button" disabled={!canGoPrevious} onClick={() => setKitPage((prev) => prev - 1)}>
+            Previous
+          </button>
+          <span>Page {kitPage} / {kitTotalPages}</span>
+          <button type="button" disabled={!canGoNext} onClick={() => setKitPage((prev) => prev + 1)}>
+            Next
+          </button>
         </div>
       </section>
 
