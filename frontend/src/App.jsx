@@ -16,6 +16,7 @@ const BUILD_STATUS = ["NEW", "OPENED", "IN_PROGRESS", "COMPLETED"];
 const LINK_CATEGORIES = ["BUILD_LOG", "REVIEW", "TUTORIAL", "GALLERY"];
 const ASSET_TYPES = ["BOX_ART", "MANUAL", "BUILD_PHOTO", "REFERENCE_IMAGE", "VIDEO", "DOCUMENT"];
 const PAGE_SIZE = 10;
+const THUMBNAIL_PREF_STORAGE_KEY = "artifactory_kit_thumbnail_asset_map";
 
 const EMPTY_KIT_FILTERS = {
   q: "",
@@ -295,6 +296,8 @@ function KitsPage({
 
 function NewKitPage({ tags, onCreate }) {
   const [form, setForm] = useState(EMPTY_KIT_FORM);
+  const [imageFiles, setImageFiles] = useState([]);
+  const [imageAssetType, setImageAssetType] = useState("BOX_ART");
 
   function toggleTag(id) {
     setForm((prev) => ({
@@ -309,8 +312,12 @@ function NewKitPage({ tags, onCreate }) {
       ...form,
       purchase_price: form.purchase_price ? Number(form.purchase_price) : null,
       purchase_date: form.purchase_date || null,
+      imageFiles,
+      imageAssetType,
     });
     setForm(EMPTY_KIT_FORM);
+    setImageFiles([]);
+    setImageAssetType("BOX_ART");
   }
 
   return (
@@ -345,6 +352,18 @@ function NewKitPage({ tags, onCreate }) {
               </option>
             ))}
           </select>
+          <select value={imageAssetType} onChange={(e) => setImageAssetType(e.target.value)}>
+            <option value="BOX_ART">BOX_ART</option>
+            <option value="BUILD_PHOTO">BUILD_PHOTO</option>
+            <option value="REFERENCE_IMAGE">REFERENCE_IMAGE</option>
+          </select>
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={(e) => setImageFiles(Array.from(e.target.files || []))}
+          />
+          <p className="muted span-2">Add optional kit images now ({imageFiles.length} selected).</p>
           <div className="tag-list span-2">
             {tags.map((tag) => (
               <button
@@ -366,7 +385,7 @@ function NewKitPage({ tags, onCreate }) {
   );
 }
 
-function KitWorkspacePage({ token, allTags }) {
+function KitWorkspacePage({ token, allTags, thumbnailAssetMap, onSetThumbnailAsset }) {
   const { kitId } = useParams();
   const [tab, setTab] = useState("overview");
   const [kit, setKit] = useState(null);
@@ -383,6 +402,11 @@ function KitWorkspacePage({ token, allTags }) {
   });
   const [timelineForm, setTimelineForm] = useState({ status: "IN_PROGRESS", notes: "" });
   const [assetForm, setAssetForm] = useState({ type: "DOCUMENT", description: "", is_external_reference: false, file: null });
+  const thumbnailAssetId = thumbnailAssetMap?.[String(kitId)] || null;
+  const imageAssets = useMemo(
+    () => assets.filter((asset) => asset.mime_type?.startsWith("image/")),
+    [assets]
+  );
 
   useEffect(() => {
     if (!kitId) return;
@@ -537,6 +561,30 @@ function KitWorkspacePage({ token, allTags }) {
                 </span>
               ))}
               {(kit.tags || []).length === 0 ? <span className="muted">No tags linked.</span> : null}
+            </div>
+          </div>
+          <div className="span-2">
+            <div className="panel-head">
+              <h3>Image Gallery</h3>
+              <button type="button" onClick={() => onSetThumbnailAsset(Number(kitId), null)}>
+                Use Placeholder
+              </button>
+            </div>
+            <div className="kit-gallery-grid">
+              {imageAssets.map((asset) => (
+                <article key={asset.id} className={thumbnailAssetId === asset.id ? "kit-gallery-card active" : "kit-gallery-card"}>
+                  <img src={api.assetFileUrl(asset.id)} alt={asset.original_filename} />
+                  <div className="kit-gallery-meta">
+                    <p>{asset.original_filename}</p>
+                    <button type="button" onClick={() => onSetThumbnailAsset(Number(kitId), asset.id)}>
+                      {thumbnailAssetId === asset.id ? "Thumbnail Source" : "Set as Thumbnail"}
+                    </button>
+                  </div>
+                </article>
+              ))}
+              {imageAssets.length === 0 ? (
+                <div className="kit-card-empty muted">No image assets yet. Upload in the Assets tab.</div>
+              ) : null}
             </div>
           </div>
         </article>
@@ -740,6 +788,17 @@ export default function App() {
   const [token, setToken] = useState(() => loadTokenFromStorage());
   const [kits, setKits] = useState([]);
   const [kitPreviewMap, setKitPreviewMap] = useState({});
+  const [preferredThumbnailAssetMap, setPreferredThumbnailAssetMap] = useState(() => {
+    if (typeof window === "undefined") return {};
+    const raw = window.localStorage.getItem(THUMBNAIL_PREF_STORAGE_KEY);
+    if (!raw) return {};
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch {
+      return {};
+    }
+  });
   const [tags, setTags] = useState([]);
   const [stats, setStats] = useState(null);
   const [kitFilters, setKitFilters] = useState(EMPTY_KIT_FILTERS);
@@ -796,7 +855,9 @@ export default function App() {
         kits.map(async (kit) => {
           try {
             const payload = await api.getAssets({ kitId: kit.id, skip: 0, limit: 30 });
-            const image = (payload.items || []).find((item) => item.mime_type?.startsWith("image/"));
+            const images = (payload.items || []).filter((item) => item.mime_type?.startsWith("image/"));
+            const preferredId = preferredThumbnailAssetMap[String(kit.id)];
+            const image = images.find((item) => item.id === preferredId) || images[0] || null;
             return [kit.id, image ? api.assetFileUrl(image.id) : null];
           } catch (_) {
             return [kit.id, null];
@@ -816,11 +877,30 @@ export default function App() {
     return () => {
       active = false;
     };
-  }, [kits]);
+  }, [kits, preferredThumbnailAssetMap]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(THUMBNAIL_PREF_STORAGE_KEY, JSON.stringify(preferredThumbnailAssetMap));
+  }, [preferredThumbnailAssetMap]);
 
   async function handleCreateKit(payload) {
+    const { imageFiles = [], imageAssetType = "BOX_ART", ...kitPayload } = payload;
     try {
-      await api.createKit(payload);
+      const createdKit = await api.createKit(kitPayload);
+      if (imageFiles.length > 0) {
+        await Promise.all(
+          imageFiles.map(async (file) => {
+            const formData = new FormData();
+            formData.set("kit_id", String(createdKit.id));
+            formData.set("type", imageAssetType);
+            formData.set("description", "Uploaded during kit creation");
+            formData.set("is_external_reference", "false");
+            formData.set("file", file);
+            await api.uploadAsset(formData);
+          })
+        );
+      }
       await Promise.all([
         loadKits({ nextPage: 1, nextFilters: kitFilters }),
         loadReferenceData(),
@@ -869,6 +949,18 @@ export default function App() {
     setKitPage(1);
   }
 
+  function setKitThumbnailSource(kitId, assetId) {
+    setPreferredThumbnailAssetMap((prev) => {
+      const next = { ...prev };
+      if (assetId === null || assetId === undefined) {
+        delete next[String(kitId)];
+      } else {
+        next[String(kitId)] = assetId;
+      }
+      return next;
+    });
+  }
+
   const isLoginRoute = location.pathname === "/login";
 
   if (isLoginRoute) {
@@ -898,7 +990,17 @@ export default function App() {
             }
           />
           <Route path="/kits/new" element={<NewKitPage tags={tags} onCreate={handleCreateKit} />} />
-          <Route path="/kits/:kitId" element={<KitWorkspacePage token={token} allTags={tags} />} />
+          <Route
+            path="/kits/:kitId"
+            element={
+              <KitWorkspacePage
+                token={token}
+                allTags={tags}
+                thumbnailAssetMap={preferredThumbnailAssetMap}
+                onSetThumbnailAsset={setKitThumbnailSource}
+              />
+            }
+          />
           <Route path="/tags" element={<TagsPage tags={tags} onCreateTag={handleCreateTag} />} />
           <Route path="/settings" element={<SettingsPage token={token} />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />

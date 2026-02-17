@@ -364,6 +364,47 @@ th {
   padding: 1.1rem;
 }
 
+.kit-gallery-grid {
+  margin-top: 0.7rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 0.7rem;
+}
+
+.kit-gallery-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: #fff;
+}
+
+.kit-gallery-card.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(197, 103, 42, 0.2);
+}
+
+.kit-gallery-card img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  display: block;
+}
+
+.kit-gallery-meta {
+  padding: 0.55rem 0.6rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.kit-gallery-meta p {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .recent-kit-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));

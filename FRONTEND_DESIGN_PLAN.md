@@ -49,3 +49,15 @@
 - Added tags management route.
 - Added settings route for auth/session/API base visibility.
 - Replaced old flat single-page structure with modern responsive styles.
+
+## Thumbnail Source Design Proposal
+- Current implementation (Phase 6.5):
+  - frontend can set per-kit thumbnail source from kit image gallery
+  - preference stored in browser local storage (fast, no migration required)
+- Recommended persistent design (next backend phase):
+  - add nullable `kits.thumbnail_asset_id` foreign key -> `assets.id`
+  - enforce that referenced asset belongs to the same kit and is image mime
+  - expose in API:
+    - `PUT /kits/{kit_id}` accepts `thumbnail_asset_id`
+    - `GET /kits` and `GET /kits/{kit_id}` return `thumbnail_asset_id`
+  - frontend reads this as single source of truth, with local fallback only if unset
