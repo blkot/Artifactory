@@ -1,6 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
+import {
+  NavLink,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+  useParams,
+} from "react-router-dom";
 
-import { api, ApiError, loadTokenFromStorage, setAuthToken } from "./api/client";
+import { API_BASE_URL, api, ApiError, loadTokenFromStorage, setAuthToken } from "./api/client";
 
 const GRADES = ["HG", "RG", "MG", "PG", "SD", "CUSTOM"];
 const BUILD_STATUS = ["NEW", "OPENED", "IN_PROGRESS", "COMPLETED"];
@@ -8,7 +17,7 @@ const LINK_CATEGORIES = ["BUILD_LOG", "REVIEW", "TUTORIAL", "GALLERY"];
 const ASSET_TYPES = ["BOX_ART", "MANUAL", "BUILD_PHOTO", "REFERENCE_IMAGE", "VIDEO", "DOCUMENT"];
 const PAGE_SIZE = 10;
 
-const emptyKitFilters = {
+const EMPTY_KIT_FILTERS = {
   q: "",
   grade: "",
   brand: "",
@@ -18,7 +27,7 @@ const emptyKitFilters = {
   tag: "",
 };
 
-const emptyKit = {
+const EMPTY_KIT_FORM = {
   name: "",
   grade: "HG",
   series: "",
@@ -32,166 +41,73 @@ const emptyKit = {
   tag_ids: [],
 };
 
-export default function App() {
-  const [kits, setKits] = useState([]);
-  const [assets, setAssets] = useState([]);
-  const [links, setLinks] = useState([]);
-  const [timeline, setTimeline] = useState([]);
-  const [tags, setTags] = useState([]);
-  const [stats, setStats] = useState(null);
-  const [token, setToken] = useState(() => loadTokenFromStorage());
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [authMessage, setAuthMessage] = useState("");
-  const [kitForm, setKitForm] = useState(emptyKit);
-  const [tagForm, setTagForm] = useState({ name: "", color: "#6495ed" });
-  const [linkForm, setLinkForm] = useState({
-    kit_id: "",
-    url: "",
-    category: "REVIEW",
-    title: "",
-    notes: "",
-    tag_ids: [],
-  });
-  const [timelineKitId, setTimelineKitId] = useState("");
-  const [assetKitId, setAssetKitId] = useState("");
-  const [timelineForm, setTimelineForm] = useState({
-    status: "IN_PROGRESS",
-    notes: "",
-  });
-  const [assetForm, setAssetForm] = useState({
-    type: "DOCUMENT",
-    description: "",
-    is_external_reference: false,
-    file: null,
-  });
-  const [kitFilters, setKitFilters] = useState(emptyKitFilters);
-  const [kitPage, setKitPage] = useState(1);
-  const [kitTotal, setKitTotal] = useState(0);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+function toUserMessage(err) {
+  if (err instanceof ApiError && err.status === 429) {
+    return err.retryAfter
+      ? `Rate limit exceeded. Retry after ${err.retryAfter}s.`
+      : "Rate limit exceeded.";
+  }
+  return err?.message || "Request failed";
+}
 
-  const hasActiveKitFilters = useMemo(
-    () => Object.values(kitFilters).some((value) => String(value).trim().length > 0),
-    [kitFilters]
+function Sidebar({ token, onLogout }) {
+  const items = [
+    { to: "/dashboard", label: "Dashboard" },
+    { to: "/kits", label: "Kits" },
+    { to: "/kits/new", label: "Add Kit" },
+    { to: "/tags", label: "Tags" },
+    { to: "/settings", label: "Settings" },
+  ];
+
+  return (
+    <aside className="sidebar">
+      <div className="brand">
+        <p>Artifactory</p>
+        <span>Model Collection OS</span>
+      </div>
+      <nav className="nav-list">
+        {items.map((item) => (
+          <NavLink key={item.to} to={item.to} className={({ isActive }) => (isActive ? "nav-item active" : "nav-item")}>
+            {item.label}
+          </NavLink>
+        ))}
+      </nav>
+      <div className="session-card">
+        <p>{token ? "Signed in" : "Guest mode"}</p>
+        {token ? (
+          <button type="button" onClick={onLogout}>
+            Log Out
+          </button>
+        ) : (
+          <NavLink className="ghost-link" to="/login">
+            Log In
+          </NavLink>
+        )}
+      </div>
+    </aside>
   );
+}
 
-  async function loadKits({
-    page = kitPage,
-    filters = kitFilters,
-    clearError = false,
-  } = {}) {
-    if (clearError) {
-      setError("");
-    }
-    const skip = Math.max(0, (page - 1) * PAGE_SIZE);
-    const requestFilters = { ...filters, skip, limit: PAGE_SIZE };
-    const payload = Object.values(filters).some((value) => String(value).trim().length > 0)
-      ? await api.searchKits(requestFilters)
-      : await api.getKits({ skip, limit: PAGE_SIZE });
+function AppHeader({ title, subtitle, onRefresh, loading, error }) {
+  return (
+    <header className="app-header">
+      <div>
+        <p className="kicker">Collection Workspace</p>
+        <h1>{title}</h1>
+        <p>{subtitle}</p>
+      </div>
+      <div className="header-actions">
+        <button type="button" onClick={onRefresh} disabled={loading}>
+          {loading ? "Refreshing..." : "Refresh"}
+        </button>
+      </div>
+      {error ? <p className="error-banner">{error}</p> : null}
+    </header>
+  );
+}
 
-    setKits(payload.items || []);
-    setKitTotal(payload.total || 0);
-
-    if (!linkForm.kit_id && (payload.items || []).length > 0) {
-      setLinkForm((prev) => ({ ...prev, kit_id: String(payload.items[0].id) }));
-    }
-    if (!timelineKitId && (payload.items || []).length > 0) {
-      setTimelineKitId(String(payload.items[0].id));
-    }
-    if (!assetKitId && (payload.items || []).length > 0) {
-      setAssetKitId(String(payload.items[0].id));
-    }
-  }
-
-  async function loadData() {
-    setLoading(true);
-    setError("");
-    try {
-      const [tagRes, statsRes, linkRes] = await Promise.all([
-        api.getTags(),
-        api.getStats(),
-        api.getLinks(),
-      ]);
-      setTags(tagRes || []);
-      setStats(statsRes);
-      setLinks(linkRes || []);
-      await loadKits({ page: kitPage, filters: kitFilters });
-      setAuthMessage(token ? "Authenticated session active." : "");
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 401) {
-        setAuthMessage("Authentication required for this environment. Please log in.");
-      } else if (err instanceof ApiError && err.status === 429) {
-        setError(
-          err.retryAfter
-            ? `Rate limit exceeded. Retry after ${err.retryAfter}s.`
-            : "Rate limit exceeded."
-        );
-      } else {
-        setError(err.message);
-      }
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  useEffect(() => {
-    async function refreshKits() {
-      try {
-        await loadKits();
-      } catch (err) {
-        if (err instanceof ApiError && err.status === 401) {
-          setAuthMessage("Authentication required for this environment. Please log in.");
-        } else {
-          setError(err.message);
-        }
-      }
-    }
-    refreshKits();
-  }, [kitPage, kitFilters]);
-
-  useEffect(() => {
-    if (!timelineKitId) {
-      setTimeline([]);
-      return;
-    }
-    async function loadTimeline() {
-      try {
-        const items = await api.getTimeline(Number(timelineKitId));
-        setTimeline(items || []);
-      } catch (err) {
-        if (err instanceof ApiError && err.status === 401) {
-          setAuthMessage("You must log in to view timeline data.");
-        }
-        setError(err.message);
-      }
-    }
-    loadTimeline();
-  }, [timelineKitId]);
-
-  useEffect(() => {
-    if (!assetKitId) {
-      setAssets([]);
-      return;
-    }
-    async function loadAssets() {
-      try {
-        const payload = await api.getAssets({ kitId: Number(assetKitId) });
-        setAssets(payload.items || []);
-      } catch (err) {
-        if (err instanceof ApiError && err.status === 401) {
-          setAuthMessage("You must log in to view assets.");
-        }
-        setError(err.message);
-      }
-    }
-    loadAssets();
-  }, [assetKitId]);
-
+function DashboardPage({ kits, stats, loading, onRefresh }) {
+  const recentKits = kits.slice(0, 5);
   const statusMap = useMemo(() => {
     const map = {};
     for (const item of stats?.by_status || []) {
@@ -200,411 +116,140 @@ export default function App() {
     return map;
   }, [stats]);
 
-  const kitTotalPages = Math.max(1, Math.ceil(kitTotal / PAGE_SIZE));
-  const canGoPrevious = kitPage > 1;
-  const canGoNext = kitPage < kitTotalPages;
+  return (
+    <section className="page">
+      <AppHeader
+        title="Dashboard"
+        subtitle="Monitor your build pipeline and collection growth."
+        onRefresh={onRefresh}
+        loading={loading}
+      />
+      <div className="stats-grid modern">
+        <article className="metric-card">
+          <p>Total Kits</p>
+          <strong>{stats?.total_kits ?? 0}</strong>
+        </article>
+        <article className="metric-card">
+          <p>Total Spent</p>
+          <strong>${(stats?.total_spent ?? 0).toFixed(2)}</strong>
+        </article>
+        <article className="metric-card">
+          <p>Completion</p>
+          <strong>{(stats?.completion_rate ?? 0).toFixed(1)}%</strong>
+        </article>
+        <article className="metric-card">
+          <p>In Progress</p>
+          <strong>{statusMap.IN_PROGRESS || 0}</strong>
+        </article>
+      </div>
 
-  async function submitKit(event) {
-    event.preventDefault();
-    setError("");
-    try {
-      await api.createKit({
-        ...kitForm,
-        purchase_price: kitForm.purchase_price ? Number(kitForm.purchase_price) : null,
-        purchase_date: kitForm.purchase_date || null,
-      });
-      setKitForm(emptyKit);
-      await loadKits({ page: 1, filters: kitFilters, clearError: true });
-      await loadData();
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 401) {
-        setAuthMessage("You must log in to create kits.");
-      }
-      setError(err.message);
-    }
-  }
+      <article className="panel">
+        <div className="panel-head">
+          <h2>Recent Kits</h2>
+          <NavLink to="/kits" className="ghost-link">
+            View Inventory
+          </NavLink>
+        </div>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Grade</th>
+                <th>Status</th>
+                <th>Series</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recentKits.map((kit) => (
+                <tr key={kit.id}>
+                  <td>
+                    <NavLink to={`/kits/${kit.id}`}>{kit.name}</NavLink>
+                  </td>
+                  <td>{kit.grade}</td>
+                  <td>{String(kit.build_status).replace("BuildStatus.", "")}</td>
+                  <td>{kit.series}</td>
+                </tr>
+              ))}
+              {recentKits.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="muted">
+                    No kits yet. Add your first kit.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+  );
+}
 
-  async function submitTag(event) {
-    event.preventDefault();
-    setError("");
-    try {
-      await api.createTag(tagForm);
-      setTagForm({ name: "", color: "#6495ed" });
-      await loadData();
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 401) {
-        setAuthMessage("You must log in to create tags.");
-      }
-      setError(err.message);
-    }
-  }
-
-  async function submitLogin(event) {
-    event.preventDefault();
-    setAuthMessage("");
-    setError("");
-    try {
-      const result = await api.login(username, password);
-      setAuthToken(result.access_token);
-      setToken(result.access_token);
-      setPassword("");
-      setAuthMessage("Login successful.");
-      await loadData();
-    } catch (err) {
-      setAuthMessage("");
-      setError(err.message || "Login failed");
-    }
-  }
-
-  function logout() {
-    setAuthToken(null);
-    setToken(null);
-    setAuthMessage("Logged out.");
-  }
-
-  function updateKitField(field, value) {
-    setKitForm((prev) => ({ ...prev, [field]: value }));
-  }
-
-  function updateKitFilter(field, value) {
-    setKitFilters((prev) => ({ ...prev, [field]: value }));
-  }
-
-  async function clearKitFilters() {
-    setKitFilters(emptyKitFilters);
-    setKitPage(1);
-    try {
-      await loadKits({ page: 1, filters: emptyKitFilters, clearError: true });
-    } catch (err) {
-      setError(err.message);
-    }
-  }
-
-  async function applyKitFilters(event) {
-    event.preventDefault();
-    setKitPage(1);
-    try {
-      await loadKits({ page: 1, filters: kitFilters, clearError: true });
-    } catch (err) {
-      setError(err.message);
-    }
-  }
-
-  function toggleTag(id) {
-    setKitForm((prev) => ({
-      ...prev,
-      tag_ids: prev.tag_ids.includes(id) ? prev.tag_ids.filter((item) => item !== id) : [...prev.tag_ids, id],
-    }));
-  }
-
-  function toggleLinkTag(id) {
-    setLinkForm((prev) => ({
-      ...prev,
-      tag_ids: prev.tag_ids.includes(id)
-        ? prev.tag_ids.filter((item) => item !== id)
-        : [...prev.tag_ids, id],
-    }));
-  }
-
-  async function submitLink(event) {
-    event.preventDefault();
-    setError("");
-    try {
-      await api.createLink({
-        ...linkForm,
-        kit_id: Number(linkForm.kit_id),
-      });
-      setLinkForm((prev) => ({
-        ...prev,
-        url: "",
-        title: "",
-        notes: "",
-        tag_ids: [],
-      }));
-      await loadData();
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 401) {
-        setAuthMessage("You must log in to manage links.");
-      }
-      setError(err.message);
-    }
-  }
-
-  async function removeLink(id) {
-    setError("");
-    try {
-      await api.deleteLink(id);
-      await loadData();
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 401) {
-        setAuthMessage("You must log in to manage links.");
-      }
-      setError(err.message);
-    }
-  }
-
-  async function submitTimeline(event) {
-    event.preventDefault();
-    if (!timelineKitId) return;
-    setError("");
-    try {
-      await api.createTimeline(Number(timelineKitId), timelineForm);
-      setTimelineForm((prev) => ({ ...prev, notes: "" }));
-      const items = await api.getTimeline(Number(timelineKitId));
-      setTimeline(items || []);
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 401) {
-        setAuthMessage("You must log in to create timeline entries.");
-      }
-      setError(err.message);
-    }
-  }
-
-  async function submitAsset(event) {
-    event.preventDefault();
-    if (!assetKitId || !assetForm.file) {
-      setError("Please select a kit and file before uploading.");
-      return;
-    }
-    setError("");
-    try {
-      const formData = new FormData();
-      formData.set("kit_id", String(Number(assetKitId)));
-      formData.set("type", assetForm.type);
-      formData.set("description", assetForm.description);
-      formData.set("is_external_reference", String(assetForm.is_external_reference));
-      formData.set("file", assetForm.file);
-      await api.uploadAsset(formData);
-      setAssetForm((prev) => ({
-        ...prev,
-        description: "",
-        is_external_reference: false,
-        file: null,
-      }));
-      const payload = await api.getAssets({ kitId: Number(assetKitId) });
-      setAssets(payload.items || []);
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 401) {
-        setAuthMessage("You must log in to manage assets.");
-      }
-      setError(err.message);
-    }
-  }
-
-  async function removeAsset(id) {
-    setError("");
-    try {
-      await api.deleteAsset(id);
-      const payload = await api.getAssets({ kitId: Number(assetKitId) });
-      setAssets(payload.items || []);
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 401) {
-        setAuthMessage("You must log in to manage assets.");
-      }
-      setError(err.message);
-    }
-  }
+function KitsPage({
+  kits,
+  total,
+  page,
+  filters,
+  onPageChange,
+  onFilterChange,
+  onApplyFilters,
+  onClearFilters,
+}) {
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const hasActiveFilters = Object.values(filters).some((value) => String(value).trim().length > 0);
 
   return (
-    <main className="shell">
-      <header className="hero">
-        <div>
-          <p className="eyebrow">Model Kit Collection</p>
-          <h1>Artifactory</h1>
-          <p>Track purchases, progress, references, and build history in one place.</p>
-        </div>
-        <button type="button" onClick={loadData} disabled={loading}>{loading ? "Refreshing..." : "Refresh"}</button>
-      </header>
+    <section className="page">
+      <AppHeader
+        title="Kit Inventory"
+        subtitle="Search, filter, and route into per-kit workspaces."
+        onRefresh={onApplyFilters}
+        loading={false}
+      />
 
-      <section className="card auth-card">
-        <h2>Authentication</h2>
-        {token ? (
-          <div className="auth-row">
-            <p className="auth-ok">Token loaded</p>
-            <button type="button" onClick={logout}>Log Out</button>
-          </div>
-        ) : (
-          <form onSubmit={submitLogin} className="form auth-form">
-            <input
-              required
-              placeholder="Username"
-              value={username}
-              onChange={(event) => setUsername(event.target.value)}
-            />
-            <input
-              required
-              type="password"
-              placeholder="Password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-            />
-            <button type="submit">Log In</button>
-          </form>
-        )}
-        {authMessage ? <p className="notice">{authMessage}</p> : null}
-      </section>
-
-      {error ? <p className="error">{error}</p> : null}
-
-      <section className="grid">
-        <article className="card stats">
-          <h2>Collection Stats</h2>
-          <div className="stats-grid">
-            <div>
-              <strong>{stats?.total_kits ?? 0}</strong>
-              <span>Total Kits</span>
-            </div>
-            <div>
-              <strong>${(stats?.total_spent ?? 0).toFixed(2)}</strong>
-              <span>Total Spent</span>
-            </div>
-            <div>
-              <strong>{(stats?.completion_rate ?? 0).toFixed(1)}%</strong>
-              <span>Completion</span>
-            </div>
-            <div>
-              <strong>{statusMap.NEW || 0}</strong>
-              <span>New</span>
-            </div>
-          </div>
-        </article>
-
-        <article className="card">
-          <h2>Add Kit</h2>
-          <form onSubmit={submitKit} className="form">
-            <input required placeholder="Name" value={kitForm.name} onChange={(e) => updateKitField("name", e.target.value)} />
-            <select value={kitForm.grade} onChange={(e) => updateKitField("grade", e.target.value)}>
-              {GRADES.map((grade) => <option key={grade} value={grade}>{grade}</option>)}
-            </select>
-            <input required placeholder="Series" value={kitForm.series} onChange={(e) => updateKitField("series", e.target.value)} />
-            <input required placeholder="Brand" value={kitForm.brand} onChange={(e) => updateKitField("brand", e.target.value)} />
-            <input required placeholder="Scale" value={kitForm.scale} onChange={(e) => updateKitField("scale", e.target.value)} />
-            <input placeholder="Kit Number" value={kitForm.kit_number} onChange={(e) => updateKitField("kit_number", e.target.value)} />
-            <input type="date" value={kitForm.purchase_date} onChange={(e) => updateKitField("purchase_date", e.target.value)} />
-            <input type="number" step="0.01" min="0" placeholder="Purchase Price" value={kitForm.purchase_price} onChange={(e) => updateKitField("purchase_price", e.target.value)} />
-            <input placeholder="Purchase Shop" value={kitForm.purchase_shop} onChange={(e) => updateKitField("purchase_shop", e.target.value)} />
-            <select value={kitForm.build_status} onChange={(e) => updateKitField("build_status", e.target.value)}>
-              {BUILD_STATUS.map((state) => <option key={state} value={state}>{state}</option>)}
-            </select>
-            <div className="tag-list">
-              {tags.map((tag) => (
-                <button type="button" key={tag.id} onClick={() => toggleTag(tag.id)} className={kitForm.tag_ids.includes(tag.id) ? "tag active" : "tag"}>
-                  {tag.name}
-                </button>
-              ))}
-            </div>
-            <button type="submit">Create Kit</button>
-          </form>
-        </article>
-
-        <article className="card">
-          <h2>Create Tag</h2>
-          <form onSubmit={submitTag} className="form">
-            <input required placeholder="Tag name" value={tagForm.name} onChange={(e) => setTagForm((prev) => ({ ...prev, name: e.target.value }))} />
-            <input type="color" value={tagForm.color} onChange={(e) => setTagForm((prev) => ({ ...prev, color: e.target.value }))} />
-            <button type="submit">Add Tag</button>
-          </form>
-        </article>
-
-        <article className="card">
-          <h2>Create Link</h2>
-          <form onSubmit={submitLink} className="form">
-            <select
-              required
-              value={linkForm.kit_id}
-              onChange={(e) => setLinkForm((prev) => ({ ...prev, kit_id: e.target.value }))}
-            >
-              <option value="" disabled>Select kit</option>
-              {kits.map((kit) => <option key={kit.id} value={kit.id}>{kit.name}</option>)}
-            </select>
-            <input
-              required
-              type="url"
-              placeholder="https://..."
-              value={linkForm.url}
-              onChange={(e) => setLinkForm((prev) => ({ ...prev, url: e.target.value }))}
-            />
-            <select
-              value={linkForm.category}
-              onChange={(e) => setLinkForm((prev) => ({ ...prev, category: e.target.value }))}
-            >
-              {LINK_CATEGORIES.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
-            </select>
-            <input
-              required
-              placeholder="Title"
-              value={linkForm.title}
-              onChange={(e) => setLinkForm((prev) => ({ ...prev, title: e.target.value }))}
-            />
-            <input
-              placeholder="Notes"
-              value={linkForm.notes}
-              onChange={(e) => setLinkForm((prev) => ({ ...prev, notes: e.target.value }))}
-            />
-            <div className="tag-list">
-              {tags.map((tag) => (
-                <button
-                  type="button"
-                  key={`link-tag-${tag.id}`}
-                  onClick={() => toggleLinkTag(tag.id)}
-                  className={linkForm.tag_ids.includes(tag.id) ? "tag active" : "tag"}
-                >
-                  {tag.name}
-                </button>
-              ))}
-            </div>
-            <button type="submit">Create Link</button>
-          </form>
-        </article>
-      </section>
-
-      <section className="card">
-        <h2>Kit Inventory</h2>
-        <form onSubmit={applyKitFilters} className="form filter-grid">
-          <input
-            placeholder="Search name"
-            value={kitFilters.q}
-            onChange={(e) => updateKitFilter("q", e.target.value)}
-          />
-          <select value={kitFilters.grade} onChange={(e) => updateKitFilter("grade", e.target.value)}>
+      <article className="panel">
+        <form
+          className="filter-grid"
+          onSubmit={(event) => {
+            event.preventDefault();
+            onApplyFilters();
+          }}
+        >
+          <input placeholder="Search by name" value={filters.q} onChange={(e) => onFilterChange("q", e.target.value)} />
+          <select value={filters.grade} onChange={(e) => onFilterChange("grade", e.target.value)}>
             <option value="">All grades</option>
-            {GRADES.map((grade) => <option key={`grade-filter-${grade}`} value={grade}>{grade}</option>)}
+            {GRADES.map((grade) => (
+              <option key={grade} value={grade}>
+                {grade}
+              </option>
+            ))}
           </select>
-          <select
-            value={kitFilters.build_status}
-            onChange={(e) => updateKitFilter("build_status", e.target.value)}
-          >
+          <select value={filters.build_status} onChange={(e) => onFilterChange("build_status", e.target.value)}>
             <option value="">All status</option>
-            {BUILD_STATUS.map((state) => <option key={`status-filter-${state}`} value={state}>{state}</option>)}
+            {BUILD_STATUS.map((state) => (
+              <option key={state} value={state}>
+                {state}
+              </option>
+            ))}
           </select>
-          <input
-            placeholder="Brand"
-            value={kitFilters.brand}
-            onChange={(e) => updateKitFilter("brand", e.target.value)}
-          />
-          <input
-            placeholder="Series"
-            value={kitFilters.series}
-            onChange={(e) => updateKitFilter("series", e.target.value)}
-          />
-          <input
-            placeholder="Scale (e.g. 1/144)"
-            value={kitFilters.scale}
-            onChange={(e) => updateKitFilter("scale", e.target.value)}
-          />
-          <input
-            placeholder="Tag contains"
-            value={kitFilters.tag}
-            onChange={(e) => updateKitFilter("tag", e.target.value)}
-          />
+          <input placeholder="Brand" value={filters.brand} onChange={(e) => onFilterChange("brand", e.target.value)} />
+          <input placeholder="Series" value={filters.series} onChange={(e) => onFilterChange("series", e.target.value)} />
+          <input placeholder="Scale" value={filters.scale} onChange={(e) => onFilterChange("scale", e.target.value)} />
+          <input placeholder="Tag contains" value={filters.tag} onChange={(e) => onFilterChange("tag", e.target.value)} />
           <div className="actions-row">
-            <button type="submit">Apply Filters</button>
-            <button type="button" onClick={clearKitFilters}>Clear</button>
+            <button type="submit">Apply</button>
+            <button type="button" onClick={onClearFilters}>
+              Clear
+            </button>
           </div>
         </form>
         <p className="muted inventory-meta">
-          Showing {kits.length} of {kitTotal} kits {hasActiveKitFilters ? "(filtered)" : ""}
+          Showing {kits.length} of {total} kits {hasActiveFilters ? "(filtered)" : ""}
         </p>
+      </article>
+
+      <article className="panel">
         <div className="table-wrap">
           <table>
             <thead>
@@ -619,7 +264,9 @@ export default function App() {
             <tbody>
               {kits.map((kit) => (
                 <tr key={kit.id}>
-                  <td>{kit.name}</td>
+                  <td>
+                    <NavLink to={`/kits/${kit.id}`}>{kit.name}</NavLink>
+                  </td>
                   <td>{kit.grade}</td>
                   <td>{kit.series}</td>
                   <td>{String(kit.build_status).replace("BuildStatus.", "")}</td>
@@ -628,184 +275,604 @@ export default function App() {
               ))}
               {kits.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="muted">No kits found for current filters.</td>
+                  <td colSpan={5} className="muted">
+                    No kits match current filters.
+                  </td>
                 </tr>
               ) : null}
             </tbody>
           </table>
         </div>
         <div className="pager-row">
-          <button type="button" disabled={!canGoPrevious} onClick={() => setKitPage((prev) => prev - 1)}>
+          <button type="button" disabled={page <= 1} onClick={() => onPageChange(page - 1)}>
             Previous
           </button>
-          <span>Page {kitPage} / {kitTotalPages}</span>
-          <button type="button" disabled={!canGoNext} onClick={() => setKitPage((prev) => prev + 1)}>
+          <span>
+            Page {page} / {totalPages}
+          </span>
+          <button type="button" disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>
             Next
           </button>
         </div>
-      </section>
+      </article>
+    </section>
+  );
+}
 
-      <section className="card">
-        <h2>Links</h2>
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Title</th>
-                <th>Category</th>
-                <th>URL</th>
-                <th>Kit ID</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {links.map((link) => (
-                <tr key={link.id}>
-                  <td>{link.title}</td>
-                  <td>{link.category}</td>
-                  <td><a href={link.url} target="_blank" rel="noreferrer">Open</a></td>
-                  <td>{link.kit_id}</td>
-                  <td>
-                    <button type="button" className="btn-danger" onClick={() => removeLink(link.id)}>
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+function NewKitPage({ tags, onCreate }) {
+  const [form, setForm] = useState(EMPTY_KIT_FORM);
 
-      <section className="card">
-        <h2>Assets</h2>
-        <form onSubmit={submitAsset} className="form">
-          <select
-            required
-            value={assetKitId}
-            onChange={(e) => setAssetKitId(e.target.value)}
-          >
-            <option value="" disabled>Select kit</option>
-            {kits.map((kit) => <option key={`asset-kit-${kit.id}`} value={kit.id}>{kit.name}</option>)}
+  function toggleTag(id) {
+    setForm((prev) => ({
+      ...prev,
+      tag_ids: prev.tag_ids.includes(id) ? prev.tag_ids.filter((item) => item !== id) : [...prev.tag_ids, id],
+    }));
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    await onCreate({
+      ...form,
+      purchase_price: form.purchase_price ? Number(form.purchase_price) : null,
+      purchase_date: form.purchase_date || null,
+    });
+    setForm(EMPTY_KIT_FORM);
+  }
+
+  return (
+    <section className="page">
+      <AppHeader
+        title="Create Kit"
+        subtitle="Capture purchase, scale, and build status with tags."
+        onRefresh={() => {}}
+        loading={false}
+      />
+      <article className="panel">
+        <form className="form-grid" onSubmit={handleSubmit}>
+          <input required placeholder="Name" value={form.name} onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))} />
+          <select value={form.grade} onChange={(e) => setForm((prev) => ({ ...prev, grade: e.target.value }))}>
+            {GRADES.map((grade) => (
+              <option key={grade} value={grade}>
+                {grade}
+              </option>
+            ))}
           </select>
-          <select
-            value={assetForm.type}
-            onChange={(e) => setAssetForm((prev) => ({ ...prev, type: e.target.value }))}
-          >
-            {ASSET_TYPES.map((type) => <option key={`asset-type-${type}`} value={type}>{type}</option>)}
+          <input required placeholder="Series" value={form.series} onChange={(e) => setForm((prev) => ({ ...prev, series: e.target.value }))} />
+          <input required placeholder="Brand" value={form.brand} onChange={(e) => setForm((prev) => ({ ...prev, brand: e.target.value }))} />
+          <input required placeholder="Scale" value={form.scale} onChange={(e) => setForm((prev) => ({ ...prev, scale: e.target.value }))} />
+          <input placeholder="Kit Number" value={form.kit_number} onChange={(e) => setForm((prev) => ({ ...prev, kit_number: e.target.value }))} />
+          <input type="date" value={form.purchase_date} onChange={(e) => setForm((prev) => ({ ...prev, purchase_date: e.target.value }))} />
+          <input type="number" step="0.01" min="0" placeholder="Purchase Price" value={form.purchase_price} onChange={(e) => setForm((prev) => ({ ...prev, purchase_price: e.target.value }))} />
+          <input placeholder="Purchase Shop" value={form.purchase_shop} onChange={(e) => setForm((prev) => ({ ...prev, purchase_shop: e.target.value }))} />
+          <select value={form.build_status} onChange={(e) => setForm((prev) => ({ ...prev, build_status: e.target.value }))}>
+            {BUILD_STATUS.map((status) => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
           </select>
-          <input
-            placeholder="Asset description"
-            value={assetForm.description}
-            onChange={(e) => setAssetForm((prev) => ({ ...prev, description: e.target.value }))}
-          />
-          <label className="checkbox-row">
-            <input
-              type="checkbox"
-              checked={assetForm.is_external_reference}
-              onChange={(e) => setAssetForm((prev) => ({ ...prev, is_external_reference: e.target.checked }))}
-            />
-            External reference
-          </label>
-          <input
-            required
-            type="file"
-            onChange={(e) => setAssetForm((prev) => ({ ...prev, file: e.target.files?.[0] || null }))}
-          />
-          <button type="submit">Upload Asset</button>
+          <div className="tag-list span-2">
+            {tags.map((tag) => (
+              <button
+                type="button"
+                key={tag.id}
+                className={form.tag_ids.includes(tag.id) ? "tag active" : "tag"}
+                onClick={() => toggleTag(tag.id)}
+              >
+                {tag.name}
+              </button>
+            ))}
+          </div>
+          <button className="span-2" type="submit">
+            Create Kit
+          </button>
         </form>
+      </article>
+    </section>
+  );
+}
 
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Preview</th>
-                <th>Name</th>
-                <th>Type</th>
-                <th>Size</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {assets.map((asset) => (
-                <tr key={asset.id}>
-                  <td>
-                    {asset.mime_type.startsWith("image/") ? (
-                      <img
-                        src={api.assetFileUrl(asset.id)}
-                        alt={asset.original_filename}
-                        className="asset-preview"
-                      />
-                    ) : (
-                      <span className="muted">No preview</span>
-                    )}
-                  </td>
-                  <td>{asset.original_filename}</td>
-                  <td>{asset.type}</td>
-                  <td>{(asset.file_size / 1024).toFixed(1)} KB</td>
-                  <td className="actions-row">
-                    <a href={api.assetFileUrl(asset.id)} target="_blank" rel="noreferrer">Open</a>
-                    <button type="button" className="btn-danger" onClick={() => removeAsset(asset.id)}>
-                      Delete
-                    </button>
-                  </td>
-                </tr>
+function KitWorkspacePage({ token, allTags }) {
+  const { kitId } = useParams();
+  const [tab, setTab] = useState("overview");
+  const [kit, setKit] = useState(null);
+  const [assets, setAssets] = useState([]);
+  const [links, setLinks] = useState([]);
+  const [timeline, setTimeline] = useState([]);
+  const [error, setError] = useState("");
+  const [linkForm, setLinkForm] = useState({
+    url: "",
+    category: "REVIEW",
+    title: "",
+    notes: "",
+    tag_ids: [],
+  });
+  const [timelineForm, setTimelineForm] = useState({ status: "IN_PROGRESS", notes: "" });
+  const [assetForm, setAssetForm] = useState({ type: "DOCUMENT", description: "", is_external_reference: false, file: null });
+
+  useEffect(() => {
+    if (!kitId) return;
+    let active = true;
+
+    async function loadWorkspace() {
+      try {
+        const [kitRes, assetRes, linkRes, timelineRes] = await Promise.all([
+          api.getKit(Number(kitId)),
+          api.getAssets({ kitId: Number(kitId), skip: 0, limit: 50 }),
+          api.getLinks(),
+          api.getTimeline(Number(kitId)),
+        ]);
+
+        if (!active) return;
+        setKit(kitRes);
+        setAssets(assetRes.items || []);
+        setLinks((linkRes || []).filter((link) => link.kit_id === Number(kitId)));
+        setTimeline(timelineRes || []);
+      } catch (err) {
+        if (active) setError(toUserMessage(err));
+      }
+    }
+
+    loadWorkspace();
+    return () => {
+      active = false;
+    };
+  }, [kitId, token]);
+
+  function toggleLinkTag(id) {
+    setLinkForm((prev) => ({
+      ...prev,
+      tag_ids: prev.tag_ids.includes(id) ? prev.tag_ids.filter((item) => item !== id) : [...prev.tag_ids, id],
+    }));
+  }
+
+  async function submitLink(event) {
+    event.preventDefault();
+    if (!kitId) return;
+    try {
+      await api.createLink({ ...linkForm, kit_id: Number(kitId) });
+      const allLinks = await api.getLinks();
+      setLinks((allLinks || []).filter((link) => link.kit_id === Number(kitId)));
+      setLinkForm({ url: "", category: "REVIEW", title: "", notes: "", tag_ids: [] });
+    } catch (err) {
+      setError(toUserMessage(err));
+    }
+  }
+
+  async function removeLink(linkId) {
+    if (!kitId) return;
+    try {
+      await api.deleteLink(linkId);
+      const allLinks = await api.getLinks();
+      setLinks((allLinks || []).filter((link) => link.kit_id === Number(kitId)));
+    } catch (err) {
+      setError(toUserMessage(err));
+    }
+  }
+
+  async function submitTimeline(event) {
+    event.preventDefault();
+    if (!kitId) return;
+    try {
+      await api.createTimeline(Number(kitId), timelineForm);
+      const rows = await api.getTimeline(Number(kitId));
+      setTimeline(rows || []);
+      setTimelineForm((prev) => ({ ...prev, notes: "" }));
+    } catch (err) {
+      setError(toUserMessage(err));
+    }
+  }
+
+  async function submitAsset(event) {
+    event.preventDefault();
+    if (!kitId || !assetForm.file) return;
+    try {
+      const formData = new FormData();
+      formData.set("kit_id", String(Number(kitId)));
+      formData.set("type", assetForm.type);
+      formData.set("description", assetForm.description);
+      formData.set("is_external_reference", String(assetForm.is_external_reference));
+      formData.set("file", assetForm.file);
+      await api.uploadAsset(formData);
+      const rows = await api.getAssets({ kitId: Number(kitId), skip: 0, limit: 50 });
+      setAssets(rows.items || []);
+      setAssetForm((prev) => ({ ...prev, description: "", is_external_reference: false, file: null }));
+    } catch (err) {
+      setError(toUserMessage(err));
+    }
+  }
+
+  async function removeAsset(assetId) {
+    if (!kitId) return;
+    try {
+      await api.deleteAsset(assetId);
+      const rows = await api.getAssets({ kitId: Number(kitId), skip: 0, limit: 50 });
+      setAssets(rows.items || []);
+    } catch (err) {
+      setError(toUserMessage(err));
+    }
+  }
+
+  if (!kit) {
+    return (
+      <section className="page">
+        <AppHeader title="Kit Workspace" subtitle="Loading kit details..." onRefresh={() => {}} loading={false} error={error} />
+      </section>
+    );
+  }
+
+  return (
+    <section className="page">
+      <AppHeader
+        title={kit.name}
+        subtitle={`${kit.grade} · ${kit.series} · ${String(kit.build_status).replace("BuildStatus.", "")}`}
+        onRefresh={() => window.location.reload()}
+        loading={false}
+        error={error}
+      />
+
+      <div className="tab-row">
+        {["overview", "assets", "links", "timeline"].map((tabName) => (
+          <button
+            type="button"
+            key={tabName}
+            className={tab === tabName ? "tab-pill active" : "tab-pill"}
+            onClick={() => setTab(tabName)}
+          >
+            {tabName}
+          </button>
+        ))}
+      </div>
+
+      {tab === "overview" ? (
+        <article className="panel grid-2">
+          <div>
+            <h3>Kit Profile</h3>
+            <p><strong>Brand:</strong> {kit.brand}</p>
+            <p><strong>Scale:</strong> {kit.scale}</p>
+            <p><strong>Kit Number:</strong> {kit.kit_number || "-"}</p>
+            <p><strong>Shop:</strong> {kit.purchase_shop || "-"}</p>
+            <p><strong>Price:</strong> {kit.purchase_price ? `$${Number(kit.purchase_price).toFixed(2)}` : "-"}</p>
+          </div>
+          <div>
+            <h3>Tags</h3>
+            <div className="tag-list">
+              {(kit.tags || []).map((tag) => (
+                <span className="tag active" key={tag.id}>
+                  {tag.name}
+                </span>
               ))}
-              {assets.length === 0 ? (
+              {(kit.tags || []).length === 0 ? <span className="muted">No tags linked.</span> : null}
+            </div>
+          </div>
+        </article>
+      ) : null}
+
+      {tab === "assets" ? (
+        <article className="panel">
+          <form className="form-grid" onSubmit={submitAsset}>
+            <select value={assetForm.type} onChange={(e) => setAssetForm((prev) => ({ ...prev, type: e.target.value }))}>
+              {ASSET_TYPES.map((type) => (
+                <option key={type} value={type}>{type}</option>
+              ))}
+            </select>
+            <input placeholder="Description" value={assetForm.description} onChange={(e) => setAssetForm((prev) => ({ ...prev, description: e.target.value }))} />
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={assetForm.is_external_reference}
+                onChange={(e) => setAssetForm((prev) => ({ ...prev, is_external_reference: e.target.checked }))}
+              />
+              External reference
+            </label>
+            <input type="file" required onChange={(e) => setAssetForm((prev) => ({ ...prev, file: e.target.files?.[0] || null }))} />
+            <button type="submit" className="span-2">Upload Asset</button>
+          </form>
+          <div className="table-wrap">
+            <table>
+              <thead>
                 <tr>
-                  <td colSpan={5} className="muted">No assets for selected kit.</td>
+                  <th>Preview</th>
+                  <th>Name</th>
+                  <th>Type</th>
+                  <th>Action</th>
                 </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
-      </section>
+              </thead>
+              <tbody>
+                {assets.map((asset) => (
+                  <tr key={asset.id}>
+                    <td>
+                      {asset.mime_type.startsWith("image/") ? <img className="asset-preview" src={api.assetFileUrl(asset.id)} alt={asset.original_filename} /> : <span className="muted">No preview</span>}
+                    </td>
+                    <td>{asset.original_filename}</td>
+                    <td>{asset.type}</td>
+                    <td className="actions-row">
+                      <a href={api.assetFileUrl(asset.id)} target="_blank" rel="noreferrer">Open</a>
+                      <button type="button" className="btn-danger" onClick={() => removeAsset(asset.id)}>Delete</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </article>
+      ) : null}
 
-      <section className="card">
-        <h2>Build Timeline</h2>
-        <form onSubmit={submitTimeline} className="form">
-          <select
-            required
-            value={timelineKitId}
-            onChange={(e) => setTimelineKitId(e.target.value)}
-          >
-            <option value="" disabled>Select kit</option>
-            {kits.map((kit) => <option key={`timeline-kit-${kit.id}`} value={kit.id}>{kit.name}</option>)}
-          </select>
-          <select
-            value={timelineForm.status}
-            onChange={(e) => setTimelineForm((prev) => ({ ...prev, status: e.target.value }))}
-          >
-            {BUILD_STATUS.map((state) => <option key={`timeline-status-${state}`} value={state}>{state}</option>)}
-          </select>
-          <input
-            placeholder="Timeline notes"
-            value={timelineForm.notes}
-            onChange={(e) => setTimelineForm((prev) => ({ ...prev, notes: e.target.value }))}
-          />
-          <button type="submit">Add Timeline Entry</button>
-        </form>
-
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Created</th>
-                <th>Status</th>
-                <th>Notes</th>
-              </tr>
-            </thead>
-            <tbody>
-              {timeline.map((item) => (
-                <tr key={item.id}>
-                  <td>{new Date(item.created_at).toLocaleString()}</td>
-                  <td>{item.status}</td>
-                  <td>{item.notes || "-"}</td>
-                </tr>
+      {tab === "links" ? (
+        <article className="panel">
+          <form className="form-grid" onSubmit={submitLink}>
+            <input required type="url" placeholder="https://..." value={linkForm.url} onChange={(e) => setLinkForm((prev) => ({ ...prev, url: e.target.value }))} />
+            <select value={linkForm.category} onChange={(e) => setLinkForm((prev) => ({ ...prev, category: e.target.value }))}>
+              {LINK_CATEGORIES.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
+            </select>
+            <input required placeholder="Title" value={linkForm.title} onChange={(e) => setLinkForm((prev) => ({ ...prev, title: e.target.value }))} />
+            <input placeholder="Notes" value={linkForm.notes} onChange={(e) => setLinkForm((prev) => ({ ...prev, notes: e.target.value }))} />
+            <div className="tag-list span-2">
+              {allTags.map((tag) => (
+                <button
+                  key={tag.id}
+                  type="button"
+                  className={linkForm.tag_ids.includes(tag.id) ? "tag active" : "tag"}
+                  onClick={() => toggleLinkTag(tag.id)}
+                >
+                  {tag.name}
+                </button>
               ))}
-            </tbody>
-          </table>
+            </div>
+            <button type="submit" className="span-2">Create Link</button>
+          </form>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Title</th><th>Category</th><th>URL</th><th>Action</th></tr>
+              </thead>
+              <tbody>
+                {links.map((link) => (
+                  <tr key={link.id}>
+                    <td>{link.title}</td>
+                    <td>{link.category}</td>
+                    <td><a href={link.url} target="_blank" rel="noreferrer">Open</a></td>
+                    <td><button type="button" className="btn-danger" onClick={() => removeLink(link.id)}>Delete</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </article>
+      ) : null}
+
+      {tab === "timeline" ? (
+        <article className="panel">
+          <form className="form-grid" onSubmit={submitTimeline}>
+            <select value={timelineForm.status} onChange={(e) => setTimelineForm((prev) => ({ ...prev, status: e.target.value }))}>
+              {BUILD_STATUS.map((state) => <option key={state} value={state}>{state}</option>)}
+            </select>
+            <input placeholder="Timeline notes" value={timelineForm.notes} onChange={(e) => setTimelineForm((prev) => ({ ...prev, notes: e.target.value }))} />
+            <button type="submit" className="span-2">Add Timeline Entry</button>
+          </form>
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>Created</th><th>Status</th><th>Notes</th></tr></thead>
+              <tbody>
+                {timeline.map((item) => (
+                  <tr key={item.id}>
+                    <td>{new Date(item.created_at).toLocaleString()}</td>
+                    <td>{item.status}</td>
+                    <td>{item.notes || "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </article>
+      ) : null}
+    </section>
+  );
+}
+
+function TagsPage({ tags, onCreateTag }) {
+  const [form, setForm] = useState({ name: "", color: "#d9822b" });
+
+  async function submit(event) {
+    event.preventDefault();
+    await onCreateTag(form);
+    setForm({ name: "", color: "#d9822b" });
+  }
+
+  return (
+    <section className="page">
+      <AppHeader title="Tag Library" subtitle="Maintain reusable labels for kits and links." onRefresh={() => {}} loading={false} />
+      <article className="panel grid-2">
+        <form className="form-grid" onSubmit={submit}>
+          <input required placeholder="Tag name" value={form.name} onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))} />
+          <input type="color" value={form.color} onChange={(e) => setForm((prev) => ({ ...prev, color: e.target.value }))} />
+          <button type="submit" className="span-2">Create Tag</button>
+        </form>
+        <div className="tag-cloud">
+          {tags.map((tag) => (
+            <span key={tag.id} className="tag active" style={{ borderColor: tag.color || "#d9822b" }}>
+              {tag.name}
+            </span>
+          ))}
         </div>
+      </article>
+    </section>
+  );
+}
+
+function SettingsPage({ token }) {
+  return (
+    <section className="page">
+      <AppHeader title="Settings" subtitle="Environment and session information." onRefresh={() => {}} loading={false} />
+      <article className="panel">
+        <p><strong>API Base URL:</strong> {API_BASE_URL}</p>
+        <p><strong>Session:</strong> {token ? "Authenticated" : "Guest"}</p>
+      </article>
+    </section>
+  );
+}
+
+function LoginPage({ onLogin, error }) {
+  const navigate = useNavigate();
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+
+  async function submit(event) {
+    event.preventDefault();
+    const ok = await onLogin(username, password);
+    if (ok) navigate("/dashboard");
+  }
+
+  return (
+    <main className="login-shell">
+      <section className="login-card">
+        <p className="kicker">Artifactory</p>
+        <h1>Sign in</h1>
+        <p>Use your API account to unlock write workflows.</p>
+        <form className="form-grid" onSubmit={submit}>
+          <input required placeholder="Username" value={username} onChange={(e) => setUsername(e.target.value)} />
+          <input required type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <button type="submit" className="span-2">Log In</button>
+        </form>
+        {error ? <p className="error-banner">{error}</p> : null}
+        <NavLink to="/dashboard" className="ghost-link">Continue in guest mode</NavLink>
+      </section>
+    </main>
+  );
+}
+
+export default function App() {
+  const location = useLocation();
+  const [token, setToken] = useState(() => loadTokenFromStorage());
+  const [kits, setKits] = useState([]);
+  const [tags, setTags] = useState([]);
+  const [stats, setStats] = useState(null);
+  const [kitFilters, setKitFilters] = useState(EMPTY_KIT_FILTERS);
+  const [kitPage, setKitPage] = useState(1);
+  const [kitTotal, setKitTotal] = useState(0);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function loadReferenceData() {
+    setLoading(true);
+    setError("");
+    try {
+      const [tagRes, statsRes] = await Promise.all([api.getTags(), api.getStats()]);
+      setTags(tagRes || []);
+      setStats(statsRes);
+    } catch (err) {
+      setError(toUserMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadKits({ nextPage = kitPage, nextFilters = kitFilters } = {}) {
+    setError("");
+    const skip = Math.max(0, (nextPage - 1) * PAGE_SIZE);
+    try {
+      const payload = Object.values(nextFilters).some((value) => String(value).trim().length > 0)
+        ? await api.searchKits({ ...nextFilters, skip, limit: PAGE_SIZE })
+        : await api.getKits({ skip, limit: PAGE_SIZE });
+      setKits(payload.items || []);
+      setKitTotal(payload.total || 0);
+    } catch (err) {
+      setError(toUserMessage(err));
+    }
+  }
+
+  useEffect(() => {
+    void loadReferenceData();
+  }, [token]);
+
+  useEffect(() => {
+    void loadKits({ nextPage: kitPage, nextFilters: kitFilters });
+  }, [kitPage, kitFilters, token]);
+
+  async function handleCreateKit(payload) {
+    try {
+      await api.createKit(payload);
+      await Promise.all([
+        loadKits({ nextPage: 1, nextFilters: kitFilters }),
+        loadReferenceData(),
+      ]);
+      setKitPage(1);
+    } catch (err) {
+      setError(toUserMessage(err));
+    }
+  }
+
+  async function handleCreateTag(payload) {
+    try {
+      await api.createTag(payload);
+      await loadReferenceData();
+    } catch (err) {
+      setError(toUserMessage(err));
+    }
+  }
+
+  async function handleLogin(username, password) {
+    setError("");
+    try {
+      const result = await api.login(username, password);
+      setAuthToken(result.access_token);
+      setToken(result.access_token);
+      return true;
+    } catch (err) {
+      setError(toUserMessage(err));
+      return false;
+    }
+  }
+
+  function handleLogout() {
+    setAuthToken(null);
+    setToken(null);
+    setError("");
+  }
+
+  function applyFilters() {
+    setKitPage(1);
+    void loadKits({ nextPage: 1, nextFilters: kitFilters });
+  }
+
+  function clearFilters() {
+    setKitFilters(EMPTY_KIT_FILTERS);
+    setKitPage(1);
+  }
+
+  const isLoginRoute = location.pathname === "/login";
+
+  if (isLoginRoute) {
+    return <LoginPage onLogin={handleLogin} error={error} />;
+  }
+
+  return (
+    <main className="app-shell">
+      <Sidebar token={token} onLogout={handleLogout} />
+      <section className="content-shell">
+        <Routes>
+          <Route path="/dashboard" element={<DashboardPage kits={kits} stats={stats} loading={loading} onRefresh={loadReferenceData} />} />
+          <Route
+            path="/kits"
+            element={
+              <KitsPage
+                kits={kits}
+                total={kitTotal}
+                page={kitPage}
+                filters={kitFilters}
+                onPageChange={setKitPage}
+                onFilterChange={(field, value) => setKitFilters((prev) => ({ ...prev, [field]: value }))}
+                onApplyFilters={applyFilters}
+                onClearFilters={clearFilters}
+              />
+            }
+          />
+          <Route path="/kits/new" element={<NewKitPage tags={tags} onCreate={handleCreateKit} />} />
+          <Route path="/kits/:kitId" element={<KitWorkspacePage token={token} allTags={tags} />} />
+          <Route path="/tags" element={<TagsPage tags={tags} onCreateTag={handleCreateTag} />} />
+          <Route path="/settings" element={<SettingsPage token={token} />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
       </section>
     </main>
   );

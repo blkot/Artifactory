@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1";
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1";
 const TOKEN_STORAGE_KEY = "artifactory_access_token";
 let authToken = null;
 
@@ -47,7 +47,7 @@ export async function request(path, options = {}) {
     headers.Authorization = `Bearer ${authToken}`;
   }
 
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
     headers,
     ...options,
   });
@@ -86,6 +86,7 @@ export const api = {
     return request(`/kits/search?${params.toString()}`);
   },
   createKit: (payload) => request("/kits", { method: "POST", body: JSON.stringify(payload) }),
+  getKit: (id) => request(`/kits/${id}`),
   getAssets: ({ kitId = null, skip = 0, limit = 20 } = {}) => {
     const params = new URLSearchParams();
     params.set("skip", String(skip));
@@ -97,7 +98,7 @@ export const api = {
   },
   uploadAsset: (formData) => request("/assets", { method: "POST", body: formData }),
   deleteAsset: (id) => request(`/assets/${id}`, { method: "DELETE" }),
-  assetFileUrl: (id) => `${API_BASE}/assets/${id}/file`,
+  assetFileUrl: (id) => `${API_BASE_URL}/assets/${id}/file`,
   getTags: () => request("/tags"),
   createTag: (payload) => request("/tags", { method: "POST", body: JSON.stringify(payload) }),
   getStats: () => request("/stats"),
