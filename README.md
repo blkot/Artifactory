@@ -39,22 +39,32 @@ npm run dev
 
 Backend docs: `http://localhost:8000/docs`
 Frontend: `http://localhost:5173`
+Integration guide: `API_GUIDE.md`
 
 ## Auth Flow Example
 ```bash
+BASE_URL="http://localhost:8000/api/v1"
+
 # 1) Register
-curl -X POST "http://localhost:8000/api/v1/auth/register" \
+curl -X POST "$BASE_URL/auth/register" \
   -H "Content-Type: application/json" \
-  -d '{"username":"builder01","email":"builder01@example.com","password":"StrongPass1"}'
+  -d '{"username":"builder01","email":"builder01@example.com","password":"StrongPass1!"}'
 
-# 2) Login (get token)
-TOKEN=$(curl -s -X POST "http://localhost:8000/api/v1/auth/login" \
+# 2) Login (get access + refresh token)
+TOKENS=$(curl -s -X POST "$BASE_URL/auth/login" \
   -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "username=builder01&password=StrongPass1" | jq -r '.access_token')
+  -d "username=builder01&password=StrongPass1!")
+ACCESS_TOKEN=$(echo "$TOKENS" | jq -r '.access_token')
+REFRESH_TOKEN=$(echo "$TOKENS" | jq -r '.refresh_token')
 
-# 3) Call protected endpoint
-curl -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8000/api/v1/kits"
+# 3) Refresh access token
+NEW_ACCESS_TOKEN=$(curl -s -X POST "$BASE_URL/auth/refresh" \
+  -H "Content-Type: application/json" \
+  -d "{\"refresh_token\":\"$REFRESH_TOKEN\"}" | jq -r '.access_token')
+
+# 4) Call protected endpoint
+curl -H "Authorization: Bearer $NEW_ACCESS_TOKEN" \
+  "$BASE_URL/kits"
 ```
 
 ## Environment Profiles
