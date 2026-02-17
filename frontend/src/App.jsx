@@ -54,7 +54,6 @@ function Sidebar({ token, onLogout }) {
   const items = [
     { to: "/dashboard", label: "Dashboard" },
     { to: "/kits", label: "Kits" },
-    { to: "/kits/new", label: "Add Kit" },
     { to: "/tags", label: "Tags" },
     { to: "/settings", label: "Settings" },
   ];
@@ -209,6 +208,12 @@ function KitsPage({
       />
 
       <article className="panel">
+        <div className="panel-head">
+          <h2>Kits</h2>
+          <NavLink to="/kits/new" className="inline-cta">
+            + Add Kit
+          </NavLink>
+        </div>
         <form
           className="filter-grid"
           onSubmit={(event) => {
