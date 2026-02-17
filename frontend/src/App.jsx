@@ -187,6 +187,7 @@ function DashboardPage({ kits, stats, loading, onRefresh }) {
 
 function KitsPage({
   kits,
+  kitPreviewMap,
   total,
   page,
   filters,
@@ -255,38 +256,35 @@ function KitsPage({
       </article>
 
       <article className="panel">
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Grade</th>
-                <th>Series</th>
-                <th>Status</th>
-                <th>Price</th>
-              </tr>
-            </thead>
-            <tbody>
-              {kits.map((kit) => (
-                <tr key={kit.id}>
-                  <td>
-                    <NavLink to={`/kits/${kit.id}`}>{kit.name}</NavLink>
-                  </td>
-                  <td>{kit.grade}</td>
-                  <td>{kit.series}</td>
-                  <td>{String(kit.build_status).replace("BuildStatus.", "")}</td>
-                  <td>{kit.purchase_price ? `$${Number(kit.purchase_price).toFixed(2)}` : "-"}</td>
-                </tr>
-              ))}
-              {kits.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="muted">
-                    No kits match current filters.
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
+        <div className="kit-card-grid">
+          {kits.map((kit) => (
+            <NavLink key={kit.id} to={`/kits/${kit.id}`} className="kit-card">
+              <div className="kit-card-media">
+                {kitPreviewMap[kit.id] ? (
+                  <img src={kitPreviewMap[kit.id]} alt={kit.name} />
+                ) : (
+                  <div className="kit-card-placeholder">
+                    <span>{kit.grade}</span>
+                  </div>
+                )}
+              </div>
+              <div className="kit-card-body">
+                <p className="kit-card-title">{kit.name}</p>
+                <p className="kit-card-sub">{kit.series}</p>
+                <div className="kit-meta">
+                  <span>{kit.grade}</span>
+                  <span>{String(kit.build_status).replace("BuildStatus.", "")}</span>
+                  <span>{kit.scale}</span>
+                </div>
+                <p className="kit-card-price">
+                  {kit.purchase_price ? `$${Number(kit.purchase_price).toFixed(2)}` : "No price"}
+                </p>
+              </div>
+            </NavLink>
+          ))}
+          {kits.length === 0 ? (
+            <div className="kit-card-empty muted">No kits match current filters.</div>
+          ) : null}
         </div>
         <div className="pager-row">
           <button type="button" disabled={page <= 1} onClick={() => onPageChange(page - 1)}>
@@ -750,6 +748,7 @@ export default function App() {
   const location = useLocation();
   const [token, setToken] = useState(() => loadTokenFromStorage());
   const [kits, setKits] = useState([]);
+  const [kitPreviewMap, setKitPreviewMap] = useState({});
   const [tags, setTags] = useState([]);
   const [stats, setStats] = useState(null);
   const [kitFilters, setKitFilters] = useState(EMPTY_KIT_FILTERS);
@@ -793,6 +792,40 @@ export default function App() {
   useEffect(() => {
     void loadKits({ nextPage: kitPage, nextFilters: kitFilters });
   }, [kitPage, kitFilters, token]);
+
+  useEffect(() => {
+    if (kits.length === 0) {
+      setKitPreviewMap({});
+      return;
+    }
+    let active = true;
+
+    async function loadKitPreviews() {
+      const rows = await Promise.all(
+        kits.map(async (kit) => {
+          try {
+            const payload = await api.getAssets({ kitId: kit.id, skip: 0, limit: 30 });
+            const image = (payload.items || []).find((item) => item.mime_type?.startsWith("image/"));
+            return [kit.id, image ? api.assetFileUrl(image.id) : null];
+          } catch (_) {
+            return [kit.id, null];
+          }
+        })
+      );
+
+      if (!active) return;
+      const next = {};
+      rows.forEach(([id, src]) => {
+        next[id] = src;
+      });
+      setKitPreviewMap(next);
+    }
+
+    void loadKitPreviews();
+    return () => {
+      active = false;
+    };
+  }, [kits]);
 
   async function handleCreateKit(payload) {
     try {
@@ -862,6 +895,7 @@ export default function App() {
             element={
               <KitsPage
                 kits={kits}
+                kitPreviewMap={kitPreviewMap}
                 total={kitTotal}
                 page={kitPage}
                 filters={kitFilters}
