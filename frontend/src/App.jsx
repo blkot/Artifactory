@@ -105,7 +105,7 @@ function AppHeader({ title, subtitle, onRefresh, loading, error }) {
   );
 }
 
-function DashboardPage({ kits, stats, loading, onRefresh }) {
+function DashboardPage({ kits, kitPreviewMap, stats, loading, onRefresh }) {
   const recentKits = kits.slice(0, 5);
   const statusMap = useMemo(() => {
     const map = {};
@@ -149,36 +149,27 @@ function DashboardPage({ kits, stats, loading, onRefresh }) {
             View Inventory
           </NavLink>
         </div>
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Grade</th>
-                <th>Status</th>
-                <th>Series</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recentKits.map((kit) => (
-                <tr key={kit.id}>
-                  <td>
-                    <NavLink to={`/kits/${kit.id}`}>{kit.name}</NavLink>
-                  </td>
-                  <td>{kit.grade}</td>
-                  <td>{String(kit.build_status).replace("BuildStatus.", "")}</td>
-                  <td>{kit.series}</td>
-                </tr>
-              ))}
-              {recentKits.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="muted">
-                    No kits yet. Add your first kit.
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
+        <div className="recent-kit-grid">
+          {recentKits.map((kit) => (
+            <NavLink key={kit.id} to={`/kits/${kit.id}`} className="recent-kit-card">
+              <div className="recent-kit-thumb">
+                {kitPreviewMap[kit.id] ? (
+                  <img src={kitPreviewMap[kit.id]} alt={kit.name} />
+                ) : (
+                  <div className="kit-card-placeholder">
+                    <span>{kit.grade}</span>
+                  </div>
+                )}
+              </div>
+              <div className="recent-kit-body">
+                <p className="recent-kit-title">{kit.name}</p>
+                <p className="recent-kit-sub">{kit.series}</p>
+              </div>
+            </NavLink>
+          ))}
+          {recentKits.length === 0 ? (
+            <div className="kit-card-empty muted">No kits yet. Add your first kit.</div>
+          ) : null}
         </div>
       </article>
     </section>
@@ -889,7 +880,7 @@ export default function App() {
       <Sidebar token={token} onLogout={handleLogout} />
       <section className="content-shell">
         <Routes>
-          <Route path="/dashboard" element={<DashboardPage kits={kits} stats={stats} loading={loading} onRefresh={loadReferenceData} />} />
+          <Route path="/dashboard" element={<DashboardPage kits={kits} kitPreviewMap={kitPreviewMap} stats={stats} loading={loading} onRefresh={loadReferenceData} />} />
           <Route
             path="/kits"
             element={

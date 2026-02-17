@@ -364,6 +364,70 @@ th {
   padding: 1.1rem;
 }
 
+.recent-kit-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 0.7rem;
+}
+
+.recent-kit-card {
+  text-decoration: none;
+  color: inherit;
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 0.55rem;
+  background: #fff;
+}
+
+.recent-kit-card:hover {
+  box-shadow: var(--shadow);
+}
+
+.recent-kit-thumb {
+  width: 72px;
+  height: 72px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #ece3d7;
+}
+
+.recent-kit-thumb img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.recent-kit-thumb .kit-card-placeholder {
+  height: 100%;
+}
+
+.recent-kit-body {
+  min-width: 0;
+  align-self: center;
+}
+
+.recent-kit-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.recent-kit-sub {
+  margin: 0.25rem 0 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .tab-row {
   display: flex;
   gap: 0.5rem;
