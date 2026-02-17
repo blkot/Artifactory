@@ -40,6 +40,7 @@ npm run dev
 Backend docs: `http://localhost:8000/docs`
 Frontend: `http://localhost:5173`
 Integration guide: `API_GUIDE.md`
+Mobile parity guide: `MOBILE_APP_PARITY_GUIDE.md`
 
 ## Auth Flow Example
 ```bash
