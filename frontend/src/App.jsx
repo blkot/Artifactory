@@ -68,26 +68,33 @@ function toUserMessage(err) {
 
 function Sidebar({ token, onLogout }) {
   const items = [
-    { to: "/dashboard", label: "Dashboard" },
-    { to: "/kits", label: "Kits" },
-    { to: "/tags", label: "Tags" },
-    { to: "/settings", label: "Settings" },
+    { to: "/dashboard", label: "Dashboard", short: "DB" },
+    { to: "/kits", label: "Kits", short: "KT" },
+    { to: "/tags", label: "Tags", short: "TG" },
+    { to: "/settings", label: "Settings", short: "ST" },
   ];
 
   return (
     <aside className="sidebar">
       <div className="brand">
-        <p>Artifactory</p>
-        <span>Model Collection OS</span>
+        <p className="brand-full">Artifactory</p>
+        <span className="brand-sub">Model Collection OS</span>
+        <p className="brand-mini" aria-hidden="true">
+          AF
+        </p>
       </div>
       <div className="session-card">
-        <p>{token ? "Signed in" : "Guest mode"}</p>
+        <div className="session-pill" aria-hidden="true">
+          <span className={token ? "status-dot online" : "status-dot"} />
+          <span className="session-pill-text">{token ? "IN" : "OUT"}</span>
+        </div>
+        <p className="session-text">{token ? "Signed in" : "Guest mode"}</p>
         {token ? (
-          <button type="button" onClick={onLogout}>
+          <button className="session-action" type="button" onClick={onLogout}>
             Log Out
           </button>
         ) : (
-          <NavLink className="ghost-link" to="/login">
+          <NavLink className="ghost-link session-action" to="/login">
             Log In
           </NavLink>
         )}
@@ -95,7 +102,10 @@ function Sidebar({ token, onLogout }) {
       <nav className="nav-list">
         {items.map((item) => (
           <NavLink key={item.to} to={item.to} className={({ isActive }) => (isActive ? "nav-item active" : "nav-item")}>
-            {item.label}
+            <span className="nav-short" aria-hidden="true">
+              {item.short}
+            </span>
+            <span className="nav-label">{item.label}</span>
           </NavLink>
         ))}
       </nav>
