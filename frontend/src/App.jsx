@@ -42,6 +42,21 @@ const EMPTY_KIT_FORM = {
   tag_ids: [],
 };
 
+function buildKitEditForm(kit) {
+  return {
+    name: kit.name || "",
+    grade: kit.grade || "HG",
+    series: kit.series || "",
+    brand: kit.brand || "",
+    scale: kit.scale || "",
+    kit_number: kit.kit_number || "",
+    purchase_date: kit.purchase_date || "",
+    purchase_price: kit.purchase_price ?? "",
+    purchase_shop: kit.purchase_shop || "",
+    build_status: String(kit.build_status || "NEW").replace("BuildStatus.", ""),
+  };
+}
+
 function toUserMessage(err) {
   if (err instanceof ApiError && err.status === 429) {
     return err.retryAfter
@@ -385,10 +400,20 @@ function NewKitPage({ tags, onCreate }) {
   );
 }
 
-function KitWorkspacePage({ token, allTags, thumbnailAssetMap, onSetThumbnailAsset }) {
+function KitWorkspacePage({
+  token,
+  allTags,
+  thumbnailAssetMap,
+  onSetThumbnailAsset,
+  onKitMutated,
+  onKitDeleted,
+}) {
+  const navigate = useNavigate();
   const { kitId } = useParams();
   const [tab, setTab] = useState("overview");
   const [kit, setKit] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [assets, setAssets] = useState([]);
   const [links, setLinks] = useState([]);
   const [timeline, setTimeline] = useState([]);
@@ -402,10 +427,16 @@ function KitWorkspacePage({ token, allTags, thumbnailAssetMap, onSetThumbnailAss
   });
   const [timelineForm, setTimelineForm] = useState({ status: "IN_PROGRESS", notes: "" });
   const [assetForm, setAssetForm] = useState({ type: "DOCUMENT", description: "", is_external_reference: false, file: null });
+  const [editForm, setEditForm] = useState(null);
+  const [selectedCoverCandidateId, setSelectedCoverCandidateId] = useState(null);
   const thumbnailAssetId = thumbnailAssetMap?.[String(kitId)] || null;
   const imageAssets = useMemo(
     () => assets.filter((asset) => asset.mime_type?.startsWith("image/")),
     [assets]
+  );
+  const coverAsset = useMemo(
+    () => imageAssets.find((asset) => asset.id === thumbnailAssetId) || imageAssets[0] || null,
+    [imageAssets, thumbnailAssetId]
   );
 
   useEffect(() => {
@@ -423,6 +454,7 @@ function KitWorkspacePage({ token, allTags, thumbnailAssetMap, onSetThumbnailAss
 
         if (!active) return;
         setKit(kitRes);
+        setEditForm(buildKitEditForm(kitRes));
         setAssets(assetRes.items || []);
         setLinks((linkRes || []).filter((link) => link.kit_id === Number(kitId)));
         setTimeline(timelineRes || []);
@@ -436,6 +468,15 @@ function KitWorkspacePage({ token, allTags, thumbnailAssetMap, onSetThumbnailAss
       active = false;
     };
   }, [kitId, token]);
+
+  useEffect(() => {
+    if (imageAssets.length === 0) {
+      setSelectedCoverCandidateId(null);
+      return;
+    }
+    const preferred = imageAssets.find((asset) => asset.id === thumbnailAssetId);
+    setSelectedCoverCandidateId((prev) => prev || preferred?.id || imageAssets[0].id);
+  }, [imageAssets, thumbnailAssetId]);
 
   function toggleLinkTag(id) {
     setLinkForm((prev) => ({
@@ -511,6 +552,50 @@ function KitWorkspacePage({ token, allTags, thumbnailAssetMap, onSetThumbnailAss
     }
   }
 
+  async function submitKitUpdate(event) {
+    event.preventDefault();
+    if (!kitId || !editForm) return;
+    setIsSaving(true);
+    setError("");
+    try {
+      const payload = {
+        ...editForm,
+        purchase_price:
+          editForm.purchase_price === "" || editForm.purchase_price === null
+            ? null
+            : Number(editForm.purchase_price),
+        purchase_date: editForm.purchase_date || null,
+      };
+      const updated = await api.updateKit(Number(kitId), payload);
+      setKit(updated);
+      setEditForm(buildKitEditForm(updated));
+      setIsEditing(false);
+      if (onKitMutated) await onKitMutated();
+    } catch (err) {
+      setError(toUserMessage(err));
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function deleteKit() {
+    if (!kitId) return;
+    if (!window.confirm("Delete this kit and all related assets/links/timeline entries?")) return;
+    setError("");
+    try {
+      await api.deleteKit(Number(kitId));
+      if (onKitDeleted) await onKitDeleted();
+      navigate("/kits");
+    } catch (err) {
+      setError(toUserMessage(err));
+    }
+  }
+
+  function applySelectedCover() {
+    if (!kitId || !selectedCoverCandidateId) return;
+    onSetThumbnailAsset(Number(kitId), selectedCoverCandidateId);
+  }
+
   if (!kit) {
     return (
       <section className="page">
@@ -545,12 +630,46 @@ function KitWorkspacePage({ token, allTags, thumbnailAssetMap, onSetThumbnailAss
       {tab === "overview" ? (
         <article className="panel grid-2">
           <div>
-            <h3>Kit Profile</h3>
+            <div className="panel-head">
+              <h3>Kit Profile</h3>
+              <div className="actions-row">
+                <button type="button" onClick={() => setIsEditing((prev) => !prev)}>
+                  {isEditing ? "Cancel Edit" : "Edit Basic Info"}
+                </button>
+                <button type="button" className="btn-danger" onClick={deleteKit}>
+                  Delete Kit
+                </button>
+              </div>
+            </div>
+            {isEditing && editForm ? (
+              <form className="form-grid" onSubmit={submitKitUpdate}>
+                <input required value={editForm.name} onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))} />
+                <select value={editForm.grade} onChange={(e) => setEditForm((prev) => ({ ...prev, grade: e.target.value }))}>
+                  {GRADES.map((grade) => <option key={`edit-grade-${grade}`} value={grade}>{grade}</option>)}
+                </select>
+                <input required value={editForm.series} onChange={(e) => setEditForm((prev) => ({ ...prev, series: e.target.value }))} />
+                <input required value={editForm.brand} onChange={(e) => setEditForm((prev) => ({ ...prev, brand: e.target.value }))} />
+                <input required value={editForm.scale} onChange={(e) => setEditForm((prev) => ({ ...prev, scale: e.target.value }))} />
+                <input value={editForm.kit_number} onChange={(e) => setEditForm((prev) => ({ ...prev, kit_number: e.target.value }))} />
+                <input type="date" value={editForm.purchase_date} onChange={(e) => setEditForm((prev) => ({ ...prev, purchase_date: e.target.value }))} />
+                <input type="number" step="0.01" min="0" value={editForm.purchase_price} onChange={(e) => setEditForm((prev) => ({ ...prev, purchase_price: e.target.value }))} />
+                <input value={editForm.purchase_shop} onChange={(e) => setEditForm((prev) => ({ ...prev, purchase_shop: e.target.value }))} />
+                <select value={editForm.build_status} onChange={(e) => setEditForm((prev) => ({ ...prev, build_status: e.target.value }))}>
+                  {BUILD_STATUS.map((status) => <option key={`edit-status-${status}`} value={status}>{status}</option>)}
+                </select>
+                <button type="submit" className="span-2" disabled={isSaving}>
+                  {isSaving ? "Saving..." : "Save Changes"}
+                </button>
+              </form>
+            ) : (
+              <>
             <p><strong>Brand:</strong> {kit.brand}</p>
             <p><strong>Scale:</strong> {kit.scale}</p>
             <p><strong>Kit Number:</strong> {kit.kit_number || "-"}</p>
             <p><strong>Shop:</strong> {kit.purchase_shop || "-"}</p>
             <p><strong>Price:</strong> {kit.purchase_price ? `$${Number(kit.purchase_price).toFixed(2)}` : "-"}</p>
+              </>
+            )}
           </div>
           <div>
             <h3>Tags</h3>
@@ -564,21 +683,54 @@ function KitWorkspacePage({ token, allTags, thumbnailAssetMap, onSetThumbnailAss
             </div>
           </div>
           <div className="span-2">
+            <div className="cover-panel">
+              <div className="cover-panel-media">
+                {coverAsset ? (
+                  <img src={api.assetFileUrl(coverAsset.id)} alt={coverAsset.original_filename} />
+                ) : (
+                  <div className="kit-card-placeholder">
+                    <span>{kit.grade}</span>
+                  </div>
+                )}
+              </div>
+              <div className="cover-panel-info">
+                <h3>Cover Image</h3>
+                <p className="muted">
+                  {coverAsset
+                    ? `Current source: ${coverAsset.original_filename}`
+                    : "No image selected. Placeholder is currently used."}
+                </p>
+                <div className="actions-row">
+                  <button type="button" onClick={applySelectedCover} disabled={!selectedCoverCandidateId}>
+                    Set Selected as Cover
+                  </button>
+                  <button type="button" onClick={() => onSetThumbnailAsset(Number(kitId), null)}>
+                    Use Placeholder
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="span-2">
             <div className="panel-head">
               <h3>Image Gallery</h3>
-              <button type="button" onClick={() => onSetThumbnailAsset(Number(kitId), null)}>
-                Use Placeholder
-              </button>
+              <p className="muted">Select one image, then use the cover action above.</p>
             </div>
             <div className="kit-gallery-grid">
               {imageAssets.map((asset) => (
-                <article key={asset.id} className={thumbnailAssetId === asset.id ? "kit-gallery-card active" : "kit-gallery-card"}>
+                <article
+                  key={asset.id}
+                  className={[
+                    "kit-gallery-card",
+                    thumbnailAssetId === asset.id ? "is-cover" : "",
+                    selectedCoverCandidateId === asset.id ? "active" : "",
+                  ].join(" ").trim()}
+                  onClick={() => setSelectedCoverCandidateId(asset.id)}
+                >
                   <img src={api.assetFileUrl(asset.id)} alt={asset.original_filename} />
                   <div className="kit-gallery-meta">
                     <p>{asset.original_filename}</p>
-                    <button type="button" onClick={() => onSetThumbnailAsset(Number(kitId), asset.id)}>
-                      {thumbnailAssetId === asset.id ? "Thumbnail Source" : "Set as Thumbnail"}
-                    </button>
+                    {thumbnailAssetId === asset.id ? <span className="gallery-badge">Current Cover</span> : null}
                   </div>
                 </article>
               ))}
@@ -949,6 +1101,21 @@ export default function App() {
     setKitPage(1);
   }
 
+  async function handleKitMutation() {
+    await Promise.all([
+      loadKits({ nextPage: kitPage, nextFilters: kitFilters }),
+      loadReferenceData(),
+    ]);
+  }
+
+  async function handleKitDeletion() {
+    await Promise.all([
+      loadKits({ nextPage: 1, nextFilters: kitFilters }),
+      loadReferenceData(),
+    ]);
+    setKitPage(1);
+  }
+
   function setKitThumbnailSource(kitId, assetId) {
     setPreferredThumbnailAssetMap((prev) => {
       const next = { ...prev };
@@ -998,6 +1165,8 @@ export default function App() {
                 allTags={tags}
                 thumbnailAssetMap={preferredThumbnailAssetMap}
                 onSetThumbnailAsset={setKitThumbnailSource}
+                onKitMutated={handleKitMutation}
+                onKitDeleted={handleKitDeletion}
               />
             }
           />

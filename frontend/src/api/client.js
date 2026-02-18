@@ -87,6 +87,8 @@ export const api = {
   },
   createKit: (payload) => request("/kits", { method: "POST", body: JSON.stringify(payload) }),
   getKit: (id) => request(`/kits/${id}`),
+  updateKit: (id, payload) => request(`/kits/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
+  deleteKit: (id) => request(`/kits/${id}`, { method: "DELETE" }),
   getAssets: ({ kitId = null, skip = 0, limit = 20 } = {}) => {
     const params = new URLSearchParams();
     params.set("skip", String(skip));
