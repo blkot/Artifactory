@@ -78,10 +78,14 @@ export const api = {
   },
   searchKits: (filters = {}) => {
     const params = new URLSearchParams();
-    const multiValueKeys = new Set(["brand", "series", "scale", "tag"]);
     Object.entries(filters).forEach(([key, value]) => {
       if (value !== null && value !== undefined && value !== "") {
-        if (multiValueKeys.has(key)) {
+        if (Array.isArray(value)) {
+          value
+            .map((item) => String(item).trim())
+            .filter(Boolean)
+            .forEach((item) => params.append(key, item));
+        } else if (["brand", "series", "scale", "tag"].includes(key)) {
           String(value)
             .split(",")
             .map((item) => item.trim())

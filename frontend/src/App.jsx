@@ -21,11 +21,11 @@ const THUMBNAIL_PREF_STORAGE_KEY = "artifactory_kit_thumbnail_asset_map";
 const EMPTY_KIT_FILTERS = {
   q: "",
   grade: "",
-  brand: "",
-  series: "",
+  brand: [],
+  series: [],
   build_status: "",
-  scale: "",
-  tag: "",
+  scale: [],
+  tag: [],
 };
 
 const EMPTY_KIT_FORM = {
@@ -195,16 +195,22 @@ function DashboardPage({ kits, kitPreviewMap, stats, loading, onRefresh }) {
 function KitsPage({
   kits,
   kitPreviewMap,
+  tags,
+  facetOptions,
   total,
   page,
   filters,
   onPageChange,
   onFilterChange,
+  onToggleFilterValue,
   onApplyFilters,
   onClearFilters,
 }) {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const hasActiveFilters = Object.values(filters).some((value) => String(value).trim().length > 0);
+  const hasActiveFilters = Object.values(filters).some((value) => {
+    if (Array.isArray(value)) return value.length > 0;
+    return String(value).trim().length > 0;
+  });
 
   return (
     <section className="page">
@@ -246,10 +252,70 @@ function KitsPage({
               </option>
             ))}
           </select>
-          <input placeholder="Brand(s): Bandai,Kotobukiya" value={filters.brand} onChange={(e) => onFilterChange("brand", e.target.value)} />
-          <input placeholder="Series: UC,SEED" value={filters.series} onChange={(e) => onFilterChange("series", e.target.value)} />
-          <input placeholder="Scale: 1/144,1/100" value={filters.scale} onChange={(e) => onFilterChange("scale", e.target.value)} />
-          <input placeholder="Tag(s): weathering,panel-line" value={filters.tag} onChange={(e) => onFilterChange("tag", e.target.value)} />
+          <div className="multi-filter span-2">
+            <p>Brand</p>
+            <div className="check-grid">
+              {facetOptions.brand.map((item) => (
+                <label key={`brand-${item}`} className={filters.brand.includes(item) ? "filter-chip active" : "filter-chip"}>
+                  <input
+                    type="checkbox"
+                    checked={filters.brand.includes(item)}
+                    onChange={() => onToggleFilterValue("brand", item)}
+                  />
+                  <span>{item}</span>
+                </label>
+              ))}
+              {facetOptions.brand.length === 0 ? <span className="muted">No options</span> : null}
+            </div>
+          </div>
+          <div className="multi-filter span-2">
+            <p>Series</p>
+            <div className="check-grid">
+              {facetOptions.series.map((item) => (
+                <label key={`series-${item}`} className={filters.series.includes(item) ? "filter-chip active" : "filter-chip"}>
+                  <input
+                    type="checkbox"
+                    checked={filters.series.includes(item)}
+                    onChange={() => onToggleFilterValue("series", item)}
+                  />
+                  <span>{item}</span>
+                </label>
+              ))}
+              {facetOptions.series.length === 0 ? <span className="muted">No options</span> : null}
+            </div>
+          </div>
+          <div className="multi-filter span-2">
+            <p>Scale</p>
+            <div className="check-grid">
+              {facetOptions.scale.map((item) => (
+                <label key={`scale-${item}`} className={filters.scale.includes(item) ? "filter-chip active" : "filter-chip"}>
+                  <input
+                    type="checkbox"
+                    checked={filters.scale.includes(item)}
+                    onChange={() => onToggleFilterValue("scale", item)}
+                  />
+                  <span>{item}</span>
+                </label>
+              ))}
+              {facetOptions.scale.length === 0 ? <span className="muted">No options</span> : null}
+            </div>
+          </div>
+          <div className="multi-filter span-2">
+            <p>Tags</p>
+            <div className="check-grid">
+              {tags.map((tag) => (
+                <label key={`tag-filter-${tag.id}`} className={filters.tag.includes(tag.name) ? "filter-chip active" : "filter-chip"}>
+                  <input
+                    type="checkbox"
+                    checked={filters.tag.includes(tag.name)}
+                    onChange={() => onToggleFilterValue("tag", tag.name)}
+                  />
+                  <span>{tag.name}</span>
+                </label>
+              ))}
+              {tags.length === 0 ? <span className="muted">No tags</span> : null}
+            </div>
+          </div>
           <div className="actions-row">
             <button type="submit">Apply</button>
             <button type="button" onClick={onClearFilters}>
@@ -952,6 +1018,7 @@ export default function App() {
     }
   });
   const [tags, setTags] = useState([]);
+  const [kitFacetOptions, setKitFacetOptions] = useState({ brand: [], series: [], scale: [] });
   const [stats, setStats] = useState(null);
   const [kitFilters, setKitFilters] = useState(EMPTY_KIT_FILTERS);
   const [kitPage, setKitPage] = useState(1);
@@ -963,9 +1030,19 @@ export default function App() {
     setLoading(true);
     setError("");
     try {
-      const [tagRes, statsRes] = await Promise.all([api.getTags(), api.getStats()]);
+      const [tagRes, statsRes, kitRes] = await Promise.all([
+        api.getTags(),
+        api.getStats(),
+        api.getKits({ skip: 0, limit: 100 }),
+      ]);
       setTags(tagRes || []);
       setStats(statsRes);
+      const rows = kitRes.items || [];
+      setKitFacetOptions({
+        brand: [...new Set(rows.map((item) => item.brand).filter(Boolean))].sort(),
+        series: [...new Set(rows.map((item) => item.series).filter(Boolean))].sort(),
+        scale: [...new Set(rows.map((item) => item.scale).filter(Boolean))].sort(),
+      });
     } catch (err) {
       setError(toUserMessage(err));
     } finally {
@@ -1146,11 +1223,24 @@ export default function App() {
               <KitsPage
                 kits={kits}
                 kitPreviewMap={kitPreviewMap}
+                tags={tags}
+                facetOptions={kitFacetOptions}
                 total={kitTotal}
                 page={kitPage}
                 filters={kitFilters}
                 onPageChange={setKitPage}
                 onFilterChange={(field, value) => setKitFilters((prev) => ({ ...prev, [field]: value }))}
+                onToggleFilterValue={(field, value) =>
+                  setKitFilters((prev) => {
+                    const current = Array.isArray(prev[field]) ? prev[field] : [];
+                    return {
+                      ...prev,
+                      [field]: current.includes(value)
+                        ? current.filter((item) => item !== value)
+                        : [...current, value],
+                    };
+                  })
+                }
                 onApplyFilters={applyFilters}
                 onClearFilters={clearFilters}
               />

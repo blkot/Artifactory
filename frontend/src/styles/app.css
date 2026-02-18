@@ -231,6 +231,40 @@ button:disabled {
   align-items: end;
 }
 
+.multi-filter p {
+  margin: 0 0 0.35rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.check-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid #d8d0c4;
+  border-radius: 999px;
+  padding: 0.2rem 0.5rem;
+  background: #f3ede5;
+  font-size: 0.82rem;
+  color: #4f575e;
+}
+
+.filter-chip input {
+  margin: 0;
+}
+
+.filter-chip.active {
+  border-color: #2e3842;
+  background: #2e3842;
+  color: #fff;
+}
+
 .span-2 {
   grid-column: span 2;
 }
