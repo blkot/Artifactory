@@ -80,13 +80,6 @@ function Sidebar({ token, onLogout }) {
         <p>Artifactory</p>
         <span>Model Collection OS</span>
       </div>
-      <nav className="nav-list">
-        {items.map((item) => (
-          <NavLink key={item.to} to={item.to} className={({ isActive }) => (isActive ? "nav-item active" : "nav-item")}>
-            {item.label}
-          </NavLink>
-        ))}
-      </nav>
       <div className="session-card">
         <p>{token ? "Signed in" : "Guest mode"}</p>
         {token ? (
@@ -99,6 +92,13 @@ function Sidebar({ token, onLogout }) {
           </NavLink>
         )}
       </div>
+      <nav className="nav-list">
+        {items.map((item) => (
+          <NavLink key={item.to} to={item.to} className={({ isActive }) => (isActive ? "nav-item active" : "nav-item")}>
+            {item.label}
+          </NavLink>
+        ))}
+      </nav>
     </aside>
   );
 }

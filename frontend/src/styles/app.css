@@ -95,7 +95,6 @@ a {
 }
 
 .session-card {
-  margin-top: auto;
   background: var(--surface-strong);
   border-radius: var(--radius-md);
   border: 1px solid var(--line);
