@@ -16,7 +16,7 @@
   --shadow: 0 12px 36px rgba(19, 21, 24, 0.08);
   --content-shell-padding: 1.6rem;
   --kits-header-height: 176px;
-  --sidebar-collapsed-width: 78px;
+  --sidebar-collapsed-width: 96px;
   --sidebar-expanded-width: 260px;
 }
 
@@ -46,7 +46,7 @@ a {
 
 .sidebar {
   width: var(--sidebar-collapsed-width);
-  padding: 1.4rem;
+  padding: 0.75rem;
   border-right: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.55);
   backdrop-filter: blur(8px);
@@ -60,6 +60,7 @@ a {
 .sidebar:hover,
 .sidebar:focus-within {
   width: var(--sidebar-expanded-width);
+  padding: 1.4rem;
 }
 
 .brand {
@@ -197,6 +198,26 @@ a {
 
 .sidebar .brand-mini {
   display: block;
+}
+
+.sidebar:not(:hover):not(:focus-within) .brand,
+.sidebar:not(:hover):not(:focus-within) .session-card {
+  width: 100%;
+  padding: 0.55rem;
+  overflow: hidden;
+}
+
+.sidebar:not(:hover):not(:focus-within) .nav-item {
+  padding: 0.45rem;
+}
+
+.sidebar:not(:hover):not(:focus-within) .brand-mini {
+  font-size: 0.8rem;
+  letter-spacing: 0.02em;
+}
+
+.sidebar:not(:hover):not(:focus-within) .session-pill {
+  padding: 0.22rem;
 }
 
 .sidebar:hover .nav-label,
