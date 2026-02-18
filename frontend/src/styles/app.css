@@ -40,11 +40,13 @@ a {
   display: grid;
   grid-template-columns: 260px minmax(0, 1fr);
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
 }
 
 .sidebar {
   height: 100vh;
+  height: 100dvh;
   padding: 1.4rem;
   border-right: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.55);
@@ -118,13 +120,20 @@ a {
 .content-shell {
   padding: 1.6rem;
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
+  min-height: 0;
 }
 
 .page {
   display: grid;
   gap: 1rem;
   min-height: 0;
+}
+
+.kits-page {
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
 }
 
 .app-header {
@@ -247,13 +256,14 @@ button:disabled {
   grid-template-columns: minmax(300px, 340px) minmax(0, 1fr);
   gap: 1rem;
   min-height: 0;
+  overflow: hidden;
 }
 
 .kits-banner-panel {
-  position: sticky;
-  top: 0.8rem;
-  align-self: start;
-  max-height: calc(100vh - 3.6rem);
+  position: static;
+  align-self: stretch;
+  min-height: 0;
+  max-height: none;
   overflow: auto;
 }
 
@@ -720,7 +730,8 @@ th {
 @media (max-width: 980px) {
   .app-shell {
     grid-template-columns: 1fr;
-    height: auto;
+    height: 100vh;
+    height: 100dvh;
     overflow: auto;
   }
 

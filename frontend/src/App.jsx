@@ -132,7 +132,7 @@ function DashboardPage({ kits, kitPreviewMap, stats, loading, onRefresh }) {
   }, [stats]);
 
   return (
-    <section className="page">
+    <section className="page kits-page">
       <AppHeader
         title="Dashboard"
         subtitle="Monitor your build pipeline and collection growth."
