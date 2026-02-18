@@ -68,6 +68,10 @@ a {
   border-radius: var(--radius-md);
   padding: 1rem;
   box-shadow: var(--shadow);
+  display: grid;
+  gap: 0.25rem;
+  justify-items: center;
+  text-align: center;
 }
 
 .brand p {
@@ -123,6 +127,8 @@ a {
   display: grid;
   gap: 0.6rem;
   flex-shrink: 0;
+  justify-items: center;
+  text-align: center;
 }
 
 .session-card p {
@@ -168,8 +174,16 @@ a {
   border: 1px solid #d8d0c4;
   border-radius: 999px;
   background: #f5efe7;
+  color: #2a3138;
   font-family: "IBM Plex Mono", monospace;
   font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.nav-item.active .nav-short {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
 }
 
 .nav-label,
@@ -207,6 +221,14 @@ a {
 .sidebar:hover .nav-item,
 .sidebar:focus-within .nav-item {
   justify-content: flex-start;
+}
+
+.sidebar:hover .brand,
+.sidebar:focus-within .brand,
+.sidebar:hover .session-card,
+.sidebar:focus-within .session-card {
+  justify-items: start;
+  text-align: left;
 }
 
 .sidebar:hover .session-pill,
@@ -878,6 +900,12 @@ th {
 
   .nav-item {
     justify-content: flex-start;
+  }
+
+  .brand,
+  .session-card {
+    justify-items: start;
+    text-align: left;
   }
 }
 
