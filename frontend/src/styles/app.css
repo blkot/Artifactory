@@ -18,6 +18,8 @@
   --kits-header-height: 176px;
   --sidebar-collapsed-width: 96px;
   --sidebar-expanded-width: 260px;
+  --sidebar-brand-height: 88px;
+  --sidebar-session-height: 108px;
 }
 
 * {
@@ -67,11 +69,13 @@ a {
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   padding: 1rem;
+  min-height: var(--sidebar-brand-height);
   box-shadow: var(--shadow);
   display: grid;
   gap: 0.25rem;
   justify-items: center;
   text-align: center;
+  align-content: center;
 }
 
 .brand p {
@@ -125,11 +129,13 @@ a {
   border-radius: var(--radius-md);
   border: 1px solid var(--line);
   padding: 0.9rem;
+  min-height: var(--sidebar-session-height);
   display: grid;
   gap: 0.6rem;
   flex-shrink: 0;
   justify-items: center;
   text-align: center;
+  align-content: center;
 }
 
 .session-card p {
@@ -203,7 +209,6 @@ a {
 .sidebar:not(:hover):not(:focus-within) .brand,
 .sidebar:not(:hover):not(:focus-within) .session-card {
   width: 100%;
-  padding: 0.55rem;
   overflow: hidden;
 }
 
@@ -246,6 +251,7 @@ a {
 .sidebar:focus-within .session-card {
   justify-items: start;
   text-align: left;
+  align-content: start;
 }
 
 .sidebar:hover .session-pill,
@@ -922,6 +928,8 @@ th {
   .session-card {
     justify-items: start;
     text-align: left;
+    align-content: start;
+    min-height: auto;
   }
 }
 
