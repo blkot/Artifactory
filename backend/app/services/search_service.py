@@ -1,3 +1,4 @@
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.models.kit import Kit
@@ -12,11 +13,11 @@ class SearchService:
         self,
         q: str | None = None,
         grade: str | None = None,
-        brand: str | None = None,
-        series: str | None = None,
+        brand: list[str] | None = None,
+        series: list[str] | None = None,
         build_status: str | None = None,
-        scale: str | None = None,
-        tag: str | None = None,
+        scale: list[str] | None = None,
+        tag: list[str] | None = None,
         skip: int = 0,
         limit: int = 20,
     ) -> tuple[list[Kit], int]:
@@ -27,15 +28,15 @@ class SearchService:
         if grade:
             query = query.filter(Kit.grade == grade)
         if brand:
-            query = query.filter(Kit.brand.ilike(f"%{brand}%"))
+            query = query.filter(or_(*[Kit.brand.ilike(f"%{item}%") for item in brand]))
         if series:
-            query = query.filter(Kit.series.ilike(f"%{series}%"))
+            query = query.filter(or_(*[Kit.series.ilike(f"%{item}%") for item in series]))
         if build_status:
             query = query.filter(Kit.build_status == build_status)
         if scale:
-            query = query.filter(Kit.scale == scale)
+            query = query.filter(Kit.scale.in_(scale))
         if tag:
-            query = query.join(Kit.tags).filter(Tag.name.ilike(f"%{tag}%"))
+            query = query.join(Kit.tags).filter(or_(*[Tag.name.ilike(f"%{item}%") for item in tag])).distinct()
 
         total = query.count()
         return query.offset(skip).limit(limit).all(), total

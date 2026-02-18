@@ -78,9 +78,18 @@ export const api = {
   },
   searchKits: (filters = {}) => {
     const params = new URLSearchParams();
+    const multiValueKeys = new Set(["brand", "series", "scale", "tag"]);
     Object.entries(filters).forEach(([key, value]) => {
       if (value !== null && value !== undefined && value !== "") {
-        params.set(key, String(value));
+        if (multiValueKeys.has(key)) {
+          String(value)
+            .split(",")
+            .map((item) => item.trim())
+            .filter(Boolean)
+            .forEach((item) => params.append(key, item));
+        } else {
+          params.set(key, String(value));
+        }
       }
     });
     return request(`/kits/search?${params.toString()}`);

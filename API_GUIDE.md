@@ -99,6 +99,8 @@ NEW_ACCESS=$(curl -s -X POST "$BASE_URL/auth/refresh" \
   - `limit`: page size (capped by `API_PAGE_SIZE_MAX`)
 - Kit search filters:
   - `q`, `grade`, `brand`, `series`, `build_status`, `scale`, `tag`
+  - multi-value filters are supported for `brand`, `series`, `scale`, `tag` using repeated query params:
+    - example: `/kits/search?brand=Bandai&brand=Kotobukiya&scale=1/144&scale=1/100`
 
 ## Error Shape
 The API uses structured JSON errors, for example:

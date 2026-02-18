@@ -129,3 +129,64 @@ def test_kits_search_supports_filters_and_pagination(client) -> None:
     paged_payload = paged.json()
     assert paged_payload["total"] == 2
     assert len(paged_payload["items"]) == 1
+
+
+def test_kits_search_supports_multiple_brand_series_scale_and_tag_filters(client) -> None:
+    weathering = client.post("/api/v1/tags", json={"name": "weathering-multi", "color": "#333333"})
+    resin = client.post("/api/v1/tags", json={"name": "resin", "color": "#444444"})
+    assert weathering.status_code == 201
+    assert resin.status_code == 201
+    weathering_id = weathering.json()["id"]
+    resin_id = resin.json()["id"]
+
+    kits = [
+        {
+            "name": "RG Hi-Nu",
+            "grade": "RG",
+            "series": "UC",
+            "brand": "Bandai",
+            "scale": "1/144",
+            "build_status": "NEW",
+            "tag_ids": [weathering_id],
+        },
+        {
+            "name": "Frame Arms Baselard",
+            "grade": "CUSTOM",
+            "series": "Frame Arms Girl",
+            "brand": "Kotobukiya",
+            "scale": "1/100",
+            "build_status": "NEW",
+            "tag_ids": [resin_id],
+        },
+        {
+            "name": "Unrelated Kit",
+            "grade": "HG",
+            "series": "Other",
+            "brand": "SomeOtherBrand",
+            "scale": "1/60",
+            "build_status": "NEW",
+            "tag_ids": [],
+        },
+    ]
+    for payload in kits:
+        response = client.post("/api/v1/kits", json=payload)
+        assert response.status_code == 201
+
+    multi_filtered = client.get(
+        "/api/v1/kits/search",
+        params=[
+            ("brand", "Bandai"),
+            ("brand", "Kotobukiya"),
+            ("series", "UC"),
+            ("series", "Frame Arms"),
+            ("scale", "1/144"),
+            ("scale", "1/100"),
+            ("tag", "weathering-multi"),
+            ("tag", "resin"),
+        ],
+    )
+    assert multi_filtered.status_code == 200
+    payload = multi_filtered.json()
+    assert payload["total"] == 2
+    names = {item["name"] for item in payload["items"]}
+    assert names == {"RG Hi-Nu", "Frame Arms Baselard"}

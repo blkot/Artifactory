@@ -246,10 +246,10 @@ function KitsPage({
               </option>
             ))}
           </select>
-          <input placeholder="Brand" value={filters.brand} onChange={(e) => onFilterChange("brand", e.target.value)} />
-          <input placeholder="Series" value={filters.series} onChange={(e) => onFilterChange("series", e.target.value)} />
-          <input placeholder="Scale" value={filters.scale} onChange={(e) => onFilterChange("scale", e.target.value)} />
-          <input placeholder="Tag contains" value={filters.tag} onChange={(e) => onFilterChange("tag", e.target.value)} />
+          <input placeholder="Brand(s): Bandai,Kotobukiya" value={filters.brand} onChange={(e) => onFilterChange("brand", e.target.value)} />
+          <input placeholder="Series: UC,SEED" value={filters.series} onChange={(e) => onFilterChange("series", e.target.value)} />
+          <input placeholder="Scale: 1/144,1/100" value={filters.scale} onChange={(e) => onFilterChange("scale", e.target.value)} />
+          <input placeholder="Tag(s): weathering,panel-line" value={filters.tag} onChange={(e) => onFilterChange("tag", e.target.value)} />
           <div className="actions-row">
             <button type="submit">Apply</button>
             <button type="button" onClick={onClearFilters}>
