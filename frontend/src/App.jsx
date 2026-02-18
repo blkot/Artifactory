@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   NavLink,
   Navigate,
@@ -198,19 +198,35 @@ function KitsPage({
   tags,
   facetOptions,
   total,
-  page,
   filters,
-  onPageChange,
   onFilterChange,
   onToggleFilterValue,
   onApplyFilters,
   onClearFilters,
+  onLoadMore,
+  hasMore,
+  loadingMore,
 }) {
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const loadMoreRef = useRef(null);
   const hasActiveFilters = Object.values(filters).some((value) => {
     if (Array.isArray(value)) return value.length > 0;
     return String(value).trim().length > 0;
   });
+
+  useEffect(() => {
+    const target = loadMoreRef.current;
+    if (!target || !hasMore || loadingMore) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          onLoadMore();
+        }
+      },
+      { rootMargin: "120px" }
+    );
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore, onLoadMore]);
 
   return (
     <section className="page">
@@ -330,46 +346,40 @@ function KitsPage({
         </article>
 
         <article className="panel kits-list-panel">
-          <div className="kit-card-grid">
-            {kits.map((kit) => (
-              <NavLink key={kit.id} to={`/kits/${kit.id}`} className="kit-card">
-                <div className="kit-card-media">
-                  {kitPreviewMap[kit.id] ? (
-                    <img src={kitPreviewMap[kit.id]} alt={kit.name} />
-                  ) : (
-                    <div className="kit-card-placeholder">
-                      <span>{kit.grade}</span>
-                    </div>
-                  )}
-                </div>
-                <div className="kit-card-body">
-                  <p className="kit-card-title">{kit.name}</p>
-                  <p className="kit-card-sub">{kit.series}</p>
-                  <div className="kit-meta">
-                    <span>{kit.grade}</span>
-                    <span>{String(kit.build_status).replace("BuildStatus.", "")}</span>
-                    <span>{kit.scale}</span>
+          <div className="kits-list-scroll">
+            <div className="kit-card-grid">
+              {kits.map((kit) => (
+                <NavLink key={kit.id} to={`/kits/${kit.id}`} className="kit-card">
+                  <div className="kit-card-media">
+                    {kitPreviewMap[kit.id] ? (
+                      <img src={kitPreviewMap[kit.id]} alt={kit.name} />
+                    ) : (
+                      <div className="kit-card-placeholder">
+                        <span>{kit.grade}</span>
+                      </div>
+                    )}
                   </div>
-                  <p className="kit-card-price">
-                    {kit.purchase_price ? `$${Number(kit.purchase_price).toFixed(2)}` : "No price"}
-                  </p>
-                </div>
-              </NavLink>
-            ))}
-            {kits.length === 0 ? (
-              <div className="kit-card-empty muted">No kits match current filters.</div>
-            ) : null}
-          </div>
-          <div className="pager-row">
-            <button type="button" disabled={page <= 1} onClick={() => onPageChange(page - 1)}>
-              Previous
-            </button>
-            <span>
-              Page {page} / {totalPages}
-            </span>
-            <button type="button" disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>
-              Next
-            </button>
+                  <div className="kit-card-body">
+                    <p className="kit-card-title">{kit.name}</p>
+                    <p className="kit-card-sub">{kit.series}</p>
+                    <div className="kit-meta">
+                      <span>{kit.grade}</span>
+                      <span>{String(kit.build_status).replace("BuildStatus.", "")}</span>
+                      <span>{kit.scale}</span>
+                    </div>
+                    <p className="kit-card-price">
+                      {kit.purchase_price ? `$${Number(kit.purchase_price).toFixed(2)}` : "No price"}
+                    </p>
+                  </div>
+                </NavLink>
+              ))}
+              {kits.length === 0 ? (
+                <div className="kit-card-empty muted">No kits match current filters.</div>
+              ) : null}
+            </div>
+            <div ref={loadMoreRef} className="load-more-anchor" />
+            {loadingMore ? <p className="muted load-more-text">Loading more kits...</p> : null}
+            {!hasMore && kits.length > 0 ? <p className="muted load-more-text">End of list.</p> : null}
           </div>
         </article>
       </section>
@@ -1025,6 +1035,7 @@ export default function App() {
   const [kitFilters, setKitFilters] = useState(EMPTY_KIT_FILTERS);
   const [kitPage, setKitPage] = useState(1);
   const [kitTotal, setKitTotal] = useState(0);
+  const [kitsLoadingMore, setKitsLoadingMore] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -1052,17 +1063,29 @@ export default function App() {
     }
   }
 
-  async function loadKits({ nextPage = kitPage, nextFilters = kitFilters } = {}) {
+  async function loadKits({ nextPage = 1, nextFilters = kitFilters, append = false } = {}) {
     setError("");
+    if (append) setKitsLoadingMore(true);
     const skip = Math.max(0, (nextPage - 1) * PAGE_SIZE);
     try {
       const payload = Object.values(nextFilters).some((value) => String(value).trim().length > 0)
         ? await api.searchKits({ ...nextFilters, skip, limit: PAGE_SIZE })
         : await api.getKits({ skip, limit: PAGE_SIZE });
-      setKits(payload.items || []);
+      if (append) {
+        setKits((prev) => {
+          const merged = [...prev, ...(payload.items || [])];
+          const byId = new Map(merged.map((item) => [item.id, item]));
+          return Array.from(byId.values());
+        });
+      } else {
+        setKits(payload.items || []);
+      }
       setKitTotal(payload.total || 0);
+      setKitPage(nextPage);
     } catch (err) {
       setError(toUserMessage(err));
+    } finally {
+      if (append) setKitsLoadingMore(false);
     }
   }
 
@@ -1071,8 +1094,8 @@ export default function App() {
   }, [token]);
 
   useEffect(() => {
-    void loadKits({ nextPage: kitPage, nextFilters: kitFilters });
-  }, [kitPage, kitFilters, token]);
+    void loadKits({ nextPage: 1, nextFilters: kitFilters, append: false });
+  }, [token]);
 
   useEffect(() => {
     if (kits.length === 0) {
@@ -1133,10 +1156,9 @@ export default function App() {
         );
       }
       await Promise.all([
-        loadKits({ nextPage: 1, nextFilters: kitFilters }),
+        loadKits({ nextPage: 1, nextFilters: kitFilters, append: false }),
         loadReferenceData(),
       ]);
-      setKitPage(1);
     } catch (err) {
       setError(toUserMessage(err));
     }
@@ -1171,28 +1193,32 @@ export default function App() {
   }
 
   function applyFilters() {
-    setKitPage(1);
-    void loadKits({ nextPage: 1, nextFilters: kitFilters });
+    void loadKits({ nextPage: 1, nextFilters: kitFilters, append: false });
   }
 
   function clearFilters() {
     setKitFilters(EMPTY_KIT_FILTERS);
-    setKitPage(1);
+    void loadKits({ nextPage: 1, nextFilters: EMPTY_KIT_FILTERS, append: false });
   }
 
   async function handleKitMutation() {
     await Promise.all([
-      loadKits({ nextPage: kitPage, nextFilters: kitFilters }),
+      loadKits({ nextPage: 1, nextFilters: kitFilters, append: false }),
       loadReferenceData(),
     ]);
   }
 
   async function handleKitDeletion() {
     await Promise.all([
-      loadKits({ nextPage: 1, nextFilters: kitFilters }),
+      loadKits({ nextPage: 1, nextFilters: kitFilters, append: false }),
       loadReferenceData(),
     ]);
-    setKitPage(1);
+  }
+
+  async function loadMoreKits() {
+    if (kitsLoadingMore) return;
+    if (kits.length >= kitTotal) return;
+    await loadKits({ nextPage: kitPage + 1, nextFilters: kitFilters, append: true });
   }
 
   function setKitThumbnailSource(kitId, assetId) {
@@ -1228,9 +1254,7 @@ export default function App() {
                 tags={tags}
                 facetOptions={kitFacetOptions}
                 total={kitTotal}
-                page={kitPage}
                 filters={kitFilters}
-                onPageChange={setKitPage}
                 onFilterChange={(field, value) => setKitFilters((prev) => ({ ...prev, [field]: value }))}
                 onToggleFilterValue={(field, value) =>
                   setKitFilters((prev) => {
@@ -1245,6 +1269,9 @@ export default function App() {
                 }
                 onApplyFilters={applyFilters}
                 onClearFilters={clearFilters}
+                onLoadMore={loadMoreKits}
+                hasMore={kits.length < kitTotal}
+                loadingMore={kitsLoadingMore}
               />
             }
           />
