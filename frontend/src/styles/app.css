@@ -190,13 +190,9 @@ a {
 .brand-full,
 .brand-sub,
 .session-text,
-.session-action {
-  opacity: 0;
-  max-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  transform: translateX(-6px);
-  transition: opacity 140ms ease, max-width 140ms ease, transform 140ms ease;
+.session-action,
+.session-pill-text {
+  display: none;
 }
 
 .sidebar .brand-mini {
@@ -208,14 +204,14 @@ a {
 .sidebar:hover .brand-sub,
 .sidebar:hover .session-text,
 .sidebar:hover .session-action,
+.sidebar:hover .session-pill-text,
 .sidebar:focus-within .nav-label,
 .sidebar:focus-within .brand-full,
 .sidebar:focus-within .brand-sub,
 .sidebar:focus-within .session-text,
-.sidebar:focus-within .session-action {
-  opacity: 1;
-  max-width: 240px;
-  transform: translateX(0);
+.sidebar:focus-within .session-action,
+.sidebar:focus-within .session-pill-text {
+  display: inline;
 }
 
 .sidebar:hover .nav-item,
@@ -888,10 +884,9 @@ th {
   .brand-full,
   .brand-sub,
   .session-text,
-  .session-action {
-    opacity: 1;
-    max-width: 100%;
-    transform: translateX(0);
+.session-action,
+.session-pill-text {
+    display: inline;
   }
 
   .brand-mini {
