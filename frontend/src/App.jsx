@@ -208,6 +208,7 @@ function KitsPage({
   loadingMore,
 }) {
   const loadMoreRef = useRef(null);
+  const listScrollRef = useRef(null);
   const hasActiveFilters = Object.values(filters).some((value) => {
     if (Array.isArray(value)) return value.length > 0;
     return String(value).trim().length > 0;
@@ -222,14 +223,14 @@ function KitsPage({
           onLoadMore();
         }
       },
-      { rootMargin: "120px" }
+      { root: listScrollRef.current, rootMargin: "180px 0px" }
     );
     observer.observe(target);
     return () => observer.disconnect();
   }, [hasMore, loadingMore, onLoadMore]);
 
   return (
-    <section className="page">
+    <section className="page kits-inventory-page">
       <AppHeader
         title="Kit Inventory"
         subtitle="Search, filter, and route into per-kit workspaces."
@@ -346,7 +347,7 @@ function KitsPage({
         </article>
 
         <article className="panel kits-list-panel">
-          <div className="kits-list-scroll">
+          <div className="kits-list-scroll" ref={listScrollRef}>
             <div className="kit-card-grid">
               {kits.map((kit) => (
                 <NavLink key={kit.id} to={`/kits/${kit.id}`} className="kit-card">
