@@ -221,156 +221,158 @@ function KitsPage({
         loading={false}
       />
 
-      <article className="panel">
-        <div className="panel-head">
-          <h2>Kits</h2>
-          <NavLink to="/kits/new" className="inline-cta">
-            + Add Kit
-          </NavLink>
-        </div>
-        <form
-          className="filter-grid"
-          onSubmit={(event) => {
-            event.preventDefault();
-            onApplyFilters();
-          }}
-        >
-          <input placeholder="Search by name" value={filters.q} onChange={(e) => onFilterChange("q", e.target.value)} />
-          <select value={filters.grade} onChange={(e) => onFilterChange("grade", e.target.value)}>
-            <option value="">All grades</option>
-            {GRADES.map((grade) => (
-              <option key={grade} value={grade}>
-                {grade}
-              </option>
+      <section className="kits-layout">
+        <article className="panel kits-banner-panel">
+          <div className="panel-head">
+            <h2>Kits</h2>
+            <NavLink to="/kits/new" className="inline-cta">
+              + Add Kit
+            </NavLink>
+          </div>
+          <form
+            className="filter-grid kits-filter-stack"
+            onSubmit={(event) => {
+              event.preventDefault();
+              onApplyFilters();
+            }}
+          >
+            <input placeholder="Search by name" value={filters.q} onChange={(e) => onFilterChange("q", e.target.value)} />
+            <select value={filters.grade} onChange={(e) => onFilterChange("grade", e.target.value)}>
+              <option value="">All grades</option>
+              {GRADES.map((grade) => (
+                <option key={grade} value={grade}>
+                  {grade}
+                </option>
+              ))}
+            </select>
+            <select value={filters.build_status} onChange={(e) => onFilterChange("build_status", e.target.value)}>
+              <option value="">All status</option>
+              {BUILD_STATUS.map((state) => (
+                <option key={state} value={state}>
+                  {state}
+                </option>
+              ))}
+            </select>
+            <div className="multi-filter">
+              <p>Brand</p>
+              <div className="check-grid">
+                {facetOptions.brand.map((item) => (
+                  <label key={`brand-${item}`} className={filters.brand.includes(item) ? "filter-chip active" : "filter-chip"}>
+                    <input
+                      type="checkbox"
+                      checked={filters.brand.includes(item)}
+                      onChange={() => onToggleFilterValue("brand", item)}
+                    />
+                    <span>{item}</span>
+                  </label>
+                ))}
+                {facetOptions.brand.length === 0 ? <span className="muted">No options</span> : null}
+              </div>
+            </div>
+            <div className="multi-filter">
+              <p>Series</p>
+              <div className="check-grid">
+                {facetOptions.series.map((item) => (
+                  <label key={`series-${item}`} className={filters.series.includes(item) ? "filter-chip active" : "filter-chip"}>
+                    <input
+                      type="checkbox"
+                      checked={filters.series.includes(item)}
+                      onChange={() => onToggleFilterValue("series", item)}
+                    />
+                    <span>{item}</span>
+                  </label>
+                ))}
+                {facetOptions.series.length === 0 ? <span className="muted">No options</span> : null}
+              </div>
+            </div>
+            <div className="multi-filter">
+              <p>Scale</p>
+              <div className="check-grid">
+                {facetOptions.scale.map((item) => (
+                  <label key={`scale-${item}`} className={filters.scale.includes(item) ? "filter-chip active" : "filter-chip"}>
+                    <input
+                      type="checkbox"
+                      checked={filters.scale.includes(item)}
+                      onChange={() => onToggleFilterValue("scale", item)}
+                    />
+                    <span>{item}</span>
+                  </label>
+                ))}
+                {facetOptions.scale.length === 0 ? <span className="muted">No options</span> : null}
+              </div>
+            </div>
+            <div className="multi-filter">
+              <p>Tags</p>
+              <div className="check-grid">
+                {tags.map((tag) => (
+                  <label key={`tag-filter-${tag.id}`} className={filters.tag.includes(tag.name) ? "filter-chip active" : "filter-chip"}>
+                    <input
+                      type="checkbox"
+                      checked={filters.tag.includes(tag.name)}
+                      onChange={() => onToggleFilterValue("tag", tag.name)}
+                    />
+                    <span>{tag.name}</span>
+                  </label>
+                ))}
+                {tags.length === 0 ? <span className="muted">No tags</span> : null}
+              </div>
+            </div>
+            <div className="actions-row">
+              <button type="submit">Apply</button>
+              <button type="button" onClick={onClearFilters}>
+                Clear
+              </button>
+            </div>
+          </form>
+          <p className="muted inventory-meta">
+            Showing {kits.length} of {total} kits {hasActiveFilters ? "(filtered)" : ""}
+          </p>
+        </article>
+
+        <article className="panel kits-list-panel">
+          <div className="kit-card-grid">
+            {kits.map((kit) => (
+              <NavLink key={kit.id} to={`/kits/${kit.id}`} className="kit-card">
+                <div className="kit-card-media">
+                  {kitPreviewMap[kit.id] ? (
+                    <img src={kitPreviewMap[kit.id]} alt={kit.name} />
+                  ) : (
+                    <div className="kit-card-placeholder">
+                      <span>{kit.grade}</span>
+                    </div>
+                  )}
+                </div>
+                <div className="kit-card-body">
+                  <p className="kit-card-title">{kit.name}</p>
+                  <p className="kit-card-sub">{kit.series}</p>
+                  <div className="kit-meta">
+                    <span>{kit.grade}</span>
+                    <span>{String(kit.build_status).replace("BuildStatus.", "")}</span>
+                    <span>{kit.scale}</span>
+                  </div>
+                  <p className="kit-card-price">
+                    {kit.purchase_price ? `$${Number(kit.purchase_price).toFixed(2)}` : "No price"}
+                  </p>
+                </div>
+              </NavLink>
             ))}
-          </select>
-          <select value={filters.build_status} onChange={(e) => onFilterChange("build_status", e.target.value)}>
-            <option value="">All status</option>
-            {BUILD_STATUS.map((state) => (
-              <option key={state} value={state}>
-                {state}
-              </option>
-            ))}
-          </select>
-          <div className="multi-filter span-2">
-            <p>Brand</p>
-            <div className="check-grid">
-              {facetOptions.brand.map((item) => (
-                <label key={`brand-${item}`} className={filters.brand.includes(item) ? "filter-chip active" : "filter-chip"}>
-                  <input
-                    type="checkbox"
-                    checked={filters.brand.includes(item)}
-                    onChange={() => onToggleFilterValue("brand", item)}
-                  />
-                  <span>{item}</span>
-                </label>
-              ))}
-              {facetOptions.brand.length === 0 ? <span className="muted">No options</span> : null}
-            </div>
+            {kits.length === 0 ? (
+              <div className="kit-card-empty muted">No kits match current filters.</div>
+            ) : null}
           </div>
-          <div className="multi-filter span-2">
-            <p>Series</p>
-            <div className="check-grid">
-              {facetOptions.series.map((item) => (
-                <label key={`series-${item}`} className={filters.series.includes(item) ? "filter-chip active" : "filter-chip"}>
-                  <input
-                    type="checkbox"
-                    checked={filters.series.includes(item)}
-                    onChange={() => onToggleFilterValue("series", item)}
-                  />
-                  <span>{item}</span>
-                </label>
-              ))}
-              {facetOptions.series.length === 0 ? <span className="muted">No options</span> : null}
-            </div>
-          </div>
-          <div className="multi-filter span-2">
-            <p>Scale</p>
-            <div className="check-grid">
-              {facetOptions.scale.map((item) => (
-                <label key={`scale-${item}`} className={filters.scale.includes(item) ? "filter-chip active" : "filter-chip"}>
-                  <input
-                    type="checkbox"
-                    checked={filters.scale.includes(item)}
-                    onChange={() => onToggleFilterValue("scale", item)}
-                  />
-                  <span>{item}</span>
-                </label>
-              ))}
-              {facetOptions.scale.length === 0 ? <span className="muted">No options</span> : null}
-            </div>
-          </div>
-          <div className="multi-filter span-2">
-            <p>Tags</p>
-            <div className="check-grid">
-              {tags.map((tag) => (
-                <label key={`tag-filter-${tag.id}`} className={filters.tag.includes(tag.name) ? "filter-chip active" : "filter-chip"}>
-                  <input
-                    type="checkbox"
-                    checked={filters.tag.includes(tag.name)}
-                    onChange={() => onToggleFilterValue("tag", tag.name)}
-                  />
-                  <span>{tag.name}</span>
-                </label>
-              ))}
-              {tags.length === 0 ? <span className="muted">No tags</span> : null}
-            </div>
-          </div>
-          <div className="actions-row">
-            <button type="submit">Apply</button>
-            <button type="button" onClick={onClearFilters}>
-              Clear
+          <div className="pager-row">
+            <button type="button" disabled={page <= 1} onClick={() => onPageChange(page - 1)}>
+              Previous
+            </button>
+            <span>
+              Page {page} / {totalPages}
+            </span>
+            <button type="button" disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>
+              Next
             </button>
           </div>
-        </form>
-        <p className="muted inventory-meta">
-          Showing {kits.length} of {total} kits {hasActiveFilters ? "(filtered)" : ""}
-        </p>
-      </article>
-
-      <article className="panel">
-        <div className="kit-card-grid">
-          {kits.map((kit) => (
-            <NavLink key={kit.id} to={`/kits/${kit.id}`} className="kit-card">
-              <div className="kit-card-media">
-                {kitPreviewMap[kit.id] ? (
-                  <img src={kitPreviewMap[kit.id]} alt={kit.name} />
-                ) : (
-                  <div className="kit-card-placeholder">
-                    <span>{kit.grade}</span>
-                  </div>
-                )}
-              </div>
-              <div className="kit-card-body">
-                <p className="kit-card-title">{kit.name}</p>
-                <p className="kit-card-sub">{kit.series}</p>
-                <div className="kit-meta">
-                  <span>{kit.grade}</span>
-                  <span>{String(kit.build_status).replace("BuildStatus.", "")}</span>
-                  <span>{kit.scale}</span>
-                </div>
-                <p className="kit-card-price">
-                  {kit.purchase_price ? `$${Number(kit.purchase_price).toFixed(2)}` : "No price"}
-                </p>
-              </div>
-            </NavLink>
-          ))}
-          {kits.length === 0 ? (
-            <div className="kit-card-empty muted">No kits match current filters.</div>
-          ) : null}
-        </div>
-        <div className="pager-row">
-          <button type="button" disabled={page <= 1} onClick={() => onPageChange(page - 1)}>
-            Previous
-          </button>
-          <span>
-            Page {page} / {totalPages}
-          </span>
-          <button type="button" disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>
-            Next
-          </button>
-        </div>
-      </article>
+        </article>
+      </section>
     </section>
   );
 }
