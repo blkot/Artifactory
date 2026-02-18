@@ -46,7 +46,7 @@ a {
 
 .sidebar {
   width: var(--sidebar-collapsed-width);
-  padding: 0.75rem;
+  padding: 0.9rem;
   border-right: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.55);
   backdrop-filter: blur(8px);
@@ -60,7 +60,6 @@ a {
 .sidebar:hover,
 .sidebar:focus-within {
   width: var(--sidebar-expanded-width);
-  padding: 1.4rem;
 }
 
 .brand {
@@ -104,7 +103,8 @@ a {
   align-items: center;
   gap: 0.6rem;
   text-decoration: none;
-  padding: 0.65rem 0.8rem;
+  min-height: 2.7rem;
+  padding: 0.65rem 0.75rem;
   border-radius: var(--radius-sm);
   color: #394147;
   border: 1px solid transparent;
@@ -208,7 +208,7 @@ a {
 }
 
 .sidebar:not(:hover):not(:focus-within) .nav-item {
-  padding: 0.45rem;
+  min-height: 2.7rem;
 }
 
 .sidebar:not(:hover):not(:focus-within) .brand-mini {
