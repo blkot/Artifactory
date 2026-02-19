@@ -966,6 +966,12 @@ th {
   margin: 0.7rem 0 0;
 }
 
+.create-filter-row {
+  margin-top: 0.85rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #dfd7ca;
+}
+
 .facet-summary-grid {
   margin-top: 0.8rem;
   display: grid;

@@ -1281,7 +1281,7 @@ function FilterManagementPage({ token, customFacetValues, onCreateCustomFacetVal
             {loading ? "Refreshing..." : "Refresh Data"}
           </button>
         </div>
-        <div className="form-grid">
+        <div className="form-grid create-filter-row">
           <input placeholder={`Create new ${field} value`} value={newValue} onChange={(e) => setNewValue(e.target.value)} />
           {field === "tag" ? (
             <input type="color" className="color-input" value={newTagColor} onChange={(e) => setNewTagColor(e.target.value)} />
