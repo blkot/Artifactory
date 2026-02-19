@@ -70,6 +70,7 @@ function Sidebar({ token, onLogout }) {
   const items = [
     { to: "/dashboard", label: "Dashboard", short: "DB" },
     { to: "/kits", label: "Kits", short: "KT" },
+    ...(token ? [{ to: "/settings/filters", label: "Filters", short: "FL" }] : []),
     { to: "/settings", label: "Settings", short: "ST" },
   ];
 
@@ -1049,6 +1050,152 @@ function SettingsPage({ token }) {
       <article className="panel">
         <p><strong>API Base URL:</strong> {API_BASE_URL}</p>
         <p><strong>Session:</strong> {token ? "Authenticated" : "Guest"}</p>
+        {token ? (
+          <p>
+            <NavLink className="ghost-link" to="/settings/filters">
+              Open Filter Management
+            </NavLink>
+          </p>
+        ) : null}
+      </article>
+    </section>
+  );
+}
+
+function FilterManagementPage({ token }) {
+  const [kits, setKits] = useState([]);
+  const [tags, setTags] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [field, setField] = useState("brand");
+  const [fromValue, setFromValue] = useState("");
+  const [toValue, setToValue] = useState("");
+
+  const fieldOptions = [
+    { value: "brand", label: "Brand" },
+    { value: "series", label: "Series" },
+    { value: "scale", label: "Scale" },
+  ];
+
+  const facetSummary = useMemo(() => {
+    const map = new Map();
+    for (const kit of kits) {
+      const value = String(kit[field] || "").trim();
+      if (!value) continue;
+      map.set(value, (map.get(value) || 0) + 1);
+    }
+    return Array.from(map.entries())
+      .map(([value, count]) => ({ value, count }))
+      .sort((a, b) => a.value.localeCompare(b.value));
+  }, [kits, field]);
+
+  async function loadData() {
+    setLoading(true);
+    setError("");
+    try {
+      const [allTags, allKits] = await Promise.all([
+        api.getTags(),
+        (async () => {
+          const pageSize = 100;
+          let skip = 0;
+          let total = 0;
+          const rows = [];
+          do {
+            const payload = await api.getKits({ skip, limit: pageSize });
+            rows.push(...(payload.items || []));
+            total = payload.total || 0;
+            skip += pageSize;
+          } while (skip < total);
+          return rows;
+        })(),
+      ]);
+      setTags(allTags || []);
+      setKits(allKits || []);
+      if (!fromValue && allKits.length > 0) {
+        setFromValue(String(allKits[0][field] || ""));
+      }
+    } catch (err) {
+      setError(toUserMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!token) return;
+    void loadData();
+  }, [token]);
+
+  useEffect(() => {
+    if (facetSummary.length === 0) {
+      setFromValue("");
+      return;
+    }
+    if (!facetSummary.some((item) => item.value === fromValue)) {
+      setFromValue(facetSummary[0].value);
+    }
+  }, [facetSummary, fromValue]);
+
+  async function applyRename() {
+    const nextValue = toValue.trim();
+    if (!fromValue || !nextValue || fromValue === nextValue) return;
+    const affected = kits.filter((kit) => String(kit[field] || "") === fromValue);
+    if (affected.length === 0) return;
+    setSaving(true);
+    setError("");
+    try {
+      for (const kit of affected) {
+        await api.updateKit(kit.id, { [field]: nextValue });
+      }
+      setToValue("");
+      await loadData();
+    } catch (err) {
+      setError(toUserMessage(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="page">
+      <AppHeader title="Filter Management" subtitle="Authenticated workspace for maintaining filter source values." error={error} />
+      <article className="panel">
+        <div className="form-grid">
+          <select value={field} onChange={(e) => setField(e.target.value)}>
+            {fieldOptions.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+          <select value={fromValue} onChange={(e) => setFromValue(e.target.value)}>
+            {facetSummary.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.value} ({item.count})
+              </option>
+            ))}
+          </select>
+          <input placeholder="Rename to..." value={toValue} onChange={(e) => setToValue(e.target.value)} />
+          <button type="button" onClick={applyRename} disabled={saving || !fromValue || !toValue.trim()}>
+            {saving ? "Applying..." : "Apply Rename"}
+          </button>
+          <button type="button" onClick={() => void loadData()} disabled={loading || saving}>
+            {loading ? "Refreshing..." : "Refresh Data"}
+          </button>
+        </div>
+        <p className="muted inventory-meta">
+          {facetSummary.length} values in selected field · {kits.length} total kits · {tags.length} tags
+        </p>
+        <div className="facet-summary-grid">
+          {facetSummary.map((item) => (
+            <div key={`facet-${item.value}`} className="facet-summary-chip">
+              <span>{item.value}</span>
+              <strong>{item.count}</strong>
+            </div>
+          ))}
+          {facetSummary.length === 0 ? <p className="muted">No values available.</p> : null}
+        </div>
       </article>
     </section>
   );
@@ -1365,6 +1512,10 @@ export default function App() {
             }
           />
           <Route path="/settings" element={<SettingsPage token={token} />} />
+          <Route
+            path="/settings/filters"
+            element={token ? <FilterManagementPage token={token} /> : <Navigate to="/login" replace />}
+          />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </section>

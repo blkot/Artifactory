@@ -949,6 +949,35 @@ th {
   margin: 0.7rem 0 0;
 }
 
+.facet-summary-grid {
+  margin-top: 0.8rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.5rem;
+}
+
+.facet-summary-chip {
+  border: 1px solid #d8d0c4;
+  border-radius: var(--radius-sm);
+  padding: 0.45rem 0.6rem;
+  background: #f5efe7;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+
+.facet-summary-chip span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.facet-summary-chip strong {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.8rem;
+}
+
 .ghost-link {
   text-decoration: none;
   color: var(--muted);
