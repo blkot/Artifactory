@@ -113,26 +113,20 @@ function Sidebar({ token, onLogout }) {
   );
 }
 
-function AppHeader({ title, subtitle, onRefresh, loading, error }) {
+function AppHeader({ title, subtitle, error }) {
   return (
     <header className="app-header">
-      <div>
-        <p className="kicker">Collection Workspace</p>
+      <div className="app-header-copy">
         <h1>{title}</h1>
-        <p>{subtitle}</p>
-      </div>
-      <div className="header-actions">
-        <button type="button" onClick={onRefresh} disabled={loading}>
-          {loading ? "Refreshing..." : "Refresh"}
-        </button>
+        <p className="app-subtitle">{subtitle}</p>
       </div>
       {error ? <p className="error-banner">{error}</p> : null}
     </header>
   );
 }
 
-function DashboardPage({ kits, kitPreviewMap, stats, loading, onRefresh }) {
-  const recentKits = kits.slice(0, 5);
+function DashboardPage({ kits, kitPreviewMap, stats }) {
+  const recentKits = kits.slice(0, 10);
   const statusMap = useMemo(() => {
     const map = {};
     for (const item of stats?.by_status || []) {
@@ -146,8 +140,6 @@ function DashboardPage({ kits, kitPreviewMap, stats, loading, onRefresh }) {
       <AppHeader
         title="Dashboard"
         subtitle="Monitor your build pipeline and collection growth."
-        onRefresh={onRefresh}
-        loading={loading}
       />
       <div className="stats-grid modern">
         <article className="metric-card">
@@ -211,7 +203,6 @@ function KitsPage({
   filters,
   onFilterChange,
   onToggleFilterValue,
-  onApplyFilters,
   onClearFilters,
   onLoadMore,
   hasMore,
@@ -244,8 +235,6 @@ function KitsPage({
       <AppHeader
         title="Kit Inventory"
         subtitle="Search, filter, and route into per-kit workspaces."
-        onRefresh={onApplyFilters}
-        loading={false}
       />
 
       <section className="kits-layout">
@@ -260,7 +249,6 @@ function KitsPage({
             className="filter-grid kits-filter-stack"
             onSubmit={(event) => {
               event.preventDefault();
-              onApplyFilters();
             }}
           >
             <input placeholder="Search by name" value={filters.q} onChange={(e) => onFilterChange("q", e.target.value)} />
@@ -345,7 +333,6 @@ function KitsPage({
               </div>
             </div>
             <div className="actions-row">
-              <button type="submit">Apply</button>
               <button type="button" onClick={onClearFilters}>
                 Clear
               </button>
@@ -429,8 +416,6 @@ function NewKitPage({ tags, onCreate }) {
       <AppHeader
         title="Create Kit"
         subtitle="Capture purchase, scale, and build status with tags."
-        onRefresh={() => {}}
-        loading={false}
       />
       <article className="panel">
         <form className="form-grid" onSubmit={handleSubmit}>
@@ -688,7 +673,7 @@ function KitWorkspacePage({
   if (!kit) {
     return (
       <section className="page">
-        <AppHeader title="Kit Workspace" subtitle="Loading kit details..." onRefresh={() => {}} loading={false} error={error} />
+      <AppHeader title="Kit Workspace" subtitle="Loading kit details..." error={error} />
       </section>
     );
   }
@@ -698,8 +683,6 @@ function KitWorkspacePage({
       <AppHeader
         title={kit.name}
         subtitle={`${kit.grade} · ${kit.series} · ${String(kit.build_status).replace("BuildStatus.", "")}`}
-        onRefresh={() => window.location.reload()}
-        loading={false}
         error={error}
       />
 
@@ -964,7 +947,7 @@ function TagsPage({ tags, onCreateTag }) {
 
   return (
     <section className="page">
-      <AppHeader title="Tag Library" subtitle="Maintain reusable labels for kits and links." onRefresh={() => {}} loading={false} />
+      <AppHeader title="Tag Library" subtitle="Maintain reusable labels for kits and links." />
       <article className="panel grid-2">
         <form className="form-grid" onSubmit={submit}>
           <input required placeholder="Tag name" value={form.name} onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))} />
@@ -986,7 +969,7 @@ function TagsPage({ tags, onCreateTag }) {
 function SettingsPage({ token }) {
   return (
     <section className="page">
-      <AppHeader title="Settings" subtitle="Environment and session information." onRefresh={() => {}} loading={false} />
+      <AppHeader title="Settings" subtitle="Environment and session information." />
       <article className="panel">
         <p><strong>API Base URL:</strong> {API_BASE_URL}</p>
         <p><strong>Session:</strong> {token ? "Authenticated" : "Guest"}</p>
@@ -1203,8 +1186,18 @@ export default function App() {
     setError("");
   }
 
-  function applyFilters() {
-    void loadKits({ nextPage: 1, nextFilters: kitFilters, append: false });
+  function updateKitFilters(updater) {
+    setKitFilters((prev) => {
+      const next =
+        typeof updater === "function"
+          ? updater(prev)
+          : {
+              ...prev,
+              ...updater,
+            };
+      void loadKits({ nextPage: 1, nextFilters: next, append: false });
+      return next;
+    });
   }
 
   function clearFilters() {
@@ -1255,7 +1248,7 @@ export default function App() {
       <Sidebar token={token} onLogout={handleLogout} />
       <section className="content-shell">
         <Routes>
-          <Route path="/dashboard" element={<DashboardPage kits={kits} kitPreviewMap={kitPreviewMap} stats={stats} loading={loading} onRefresh={loadReferenceData} />} />
+          <Route path="/dashboard" element={<DashboardPage kits={kits} kitPreviewMap={kitPreviewMap} stats={stats} />} />
           <Route
             path="/kits"
             element={
@@ -1266,9 +1259,14 @@ export default function App() {
                 facetOptions={kitFacetOptions}
                 total={kitTotal}
                 filters={kitFilters}
-                onFilterChange={(field, value) => setKitFilters((prev) => ({ ...prev, [field]: value }))}
+                onFilterChange={(field, value) =>
+                  updateKitFilters((prev) => ({
+                    ...prev,
+                    [field]: value,
+                  }))
+                }
                 onToggleFilterValue={(field, value) =>
-                  setKitFilters((prev) => {
+                  updateKitFilters((prev) => {
                     const current = Array.isArray(prev[field]) ? prev[field] : [];
                     return {
                       ...prev,
@@ -1278,7 +1276,6 @@ export default function App() {
                     };
                   })
                 }
-                onApplyFilters={applyFilters}
                 onClearFilters={clearFilters}
                 onLoadMore={loadMoreKits}
                 hasMore={kits.length < kitTotal}
