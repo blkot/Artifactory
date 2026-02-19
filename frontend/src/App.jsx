@@ -230,15 +230,15 @@ function KitsPage({
   }, [hasMore, loadingMore, onLoadMore]);
 
   return (
-    <section className="page kits-inventory-page kits-inventory-split">
-      <aside className="kits-header-panel">
+    <section className="page kits-inventory-page kits-inventory-two-column">
+      <aside className="kits-left-stack">
+        <header className="workspace-mini-header">
+          <p>Collection Workspace</p>
+        </header>
         <AppHeader
           title="Kit Inventory"
           subtitle="Search, filter, and route into per-kit workspaces."
         />
-      </aside>
-
-      <section className="kits-right-stack">
         <article className="panel kits-banner-panel">
           <div className="panel-head">
             <h2>Kits</h2>
@@ -343,45 +343,45 @@ function KitsPage({
             Showing {kits.length} of {total} kits {hasActiveFilters ? "(filtered)" : ""}
           </p>
         </article>
+      </aside>
 
-        <article className="panel kits-list-panel">
-          <div className="kits-list-scroll" ref={listScrollRef}>
-            <div className="kit-card-grid">
-              {kits.map((kit) => (
-                <NavLink key={kit.id} to={`/kits/${kit.id}`} className="kit-card">
-                  <div className="kit-card-media">
-                    {kitPreviewMap[kit.id] ? (
-                      <img src={kitPreviewMap[kit.id]} alt={kit.name} />
-                    ) : (
-                      <div className="kit-card-placeholder">
-                        <span>{kit.grade}</span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="kit-card-body">
-                    <p className="kit-card-title">{kit.name}</p>
-                    <p className="kit-card-sub">{kit.series}</p>
-                    <div className="kit-meta">
+      <article className="panel kits-list-panel">
+        <div className="kits-list-scroll" ref={listScrollRef}>
+          <div className="kit-card-grid">
+            {kits.map((kit) => (
+              <NavLink key={kit.id} to={`/kits/${kit.id}`} className="kit-card">
+                <div className="kit-card-media">
+                  {kitPreviewMap[kit.id] ? (
+                    <img src={kitPreviewMap[kit.id]} alt={kit.name} />
+                  ) : (
+                    <div className="kit-card-placeholder">
                       <span>{kit.grade}</span>
-                      <span>{String(kit.build_status).replace("BuildStatus.", "")}</span>
-                      <span>{kit.scale}</span>
                     </div>
-                    <p className="kit-card-price">
-                      {kit.purchase_price ? `$${Number(kit.purchase_price).toFixed(2)}` : "No price"}
-                    </p>
+                  )}
+                </div>
+                <div className="kit-card-body">
+                  <p className="kit-card-title">{kit.name}</p>
+                  <p className="kit-card-sub">{kit.series}</p>
+                  <div className="kit-meta">
+                    <span>{kit.grade}</span>
+                    <span>{String(kit.build_status).replace("BuildStatus.", "")}</span>
+                    <span>{kit.scale}</span>
                   </div>
-                </NavLink>
-              ))}
-              {kits.length === 0 ? (
-                <div className="kit-card-empty muted">No kits match current filters.</div>
-              ) : null}
-            </div>
-            <div ref={loadMoreRef} className="load-more-anchor" />
-            {loadingMore ? <p className="muted load-more-text">Loading more kits...</p> : null}
-            {!hasMore && kits.length > 0 ? <p className="muted load-more-text">End of list.</p> : null}
+                  <p className="kit-card-price">
+                    {kit.purchase_price ? `$${Number(kit.purchase_price).toFixed(2)}` : "No price"}
+                  </p>
+                </div>
+              </NavLink>
+            ))}
+            {kits.length === 0 ? (
+              <div className="kit-card-empty muted">No kits match current filters.</div>
+            ) : null}
           </div>
-        </article>
-      </section>
+          <div ref={loadMoreRef} className="load-more-anchor" />
+          {loadingMore ? <p className="muted load-more-text">Loading more kits...</p> : null}
+          {!hasMore && kits.length > 0 ? <p className="muted load-more-text">End of list.</p> : null}
+        </div>
+      </article>
     </section>
   );
 }
