@@ -57,14 +57,34 @@ This document defines how to build a mobile app with feature parity to the curre
   - assets
   - links
   - timeline
-- Tags
 - Settings
+- Filter Management (auth-protected)
+
+### Auth-Scoped Management
+- `Filter Management` page is available only for authenticated users.
+- Route behavior:
+  - authenticated: can open `/settings/filters`
+  - guest: redirect to `/login`
 
 ### Kit Media UX
 - Add Kit page supports uploading initial images during creation.
 - Kit detail overview has image gallery.
 - User can set a gallery image as card thumbnail source.
 - Current thumbnail preference persistence is frontend-local (browser storage).
+
+### Kit Tag UX
+- Tags are managed in Kit detail (overview), not in a standalone `Tags` nav page.
+- Existing kit tags are removable inline (chip + remove action).
+- Add-tag flow supports:
+  - assign existing tag
+  - create new tag (with color) and assign
+
+### Filter UX
+- Search and filters are separated.
+- Search input is fixed at top of filter panel.
+- Filter options are in a scrollable region.
+- Multi-select filters are enabled for: `grade`, `build_status`, `brand`, `series`, `scale`, `tag`.
+- Filter matching is case-insensitive.
 
 ## 5) Mobile Parity Checklist (Build Target)
 
@@ -74,21 +94,26 @@ This document defines how to build a mobile app with feature parity to the curre
 - Kits list:
   - card UI
   - pagination
-  - search + filters (`q`, `grade`, `brand`, `series`, `build_status`, `scale`, `tag`)
+  - search + filters (`q`, `grade[]`, `brand[]`, `series[]`, `build_status[]`, `scale[]`, `tag[]`)
 - Add Kit:
   - full metadata fields
   - tag selection
   - optional initial image upload
 - Kit detail:
   - overview metadata + tags
+  - inline tag remove
+  - add tag (assign existing / create new)
   - image gallery
   - set thumbnail source
   - assets upload/list/delete
   - links create/list/delete
   - timeline create/list
-- Tags page:
-  - list tags
-  - create tag
+- Filter Management page (auth-only):
+  - view current filter values and counts
+  - rename `brand/series/scale` values in batch
+  - create new dynamic filter values for `brand/series/scale`
+  - create new `tag` values
+  - treat `status` as static enum (no create/delete)
 
 ### Recommended (P1)
 - Handle `429` rate limit with retry messaging using `Retry-After`.
@@ -125,9 +150,16 @@ This document defines how to build a mobile app with feature parity to the curre
 - `POST /links`, `DELETE /links/{link_id}`
 - `POST /kits/{kit_id}/timeline`
 
-### Tags Screen
+### Kit Detail Tag Actions
+- `PUT /kits/{kit_id}` with `tag_ids`
 - `GET /tags`
 - `POST /tags`
+
+### Filter Management Screen (Auth only)
+- `GET /kits` (load all kits for aggregate values)
+- `PUT /kits/{kit_id}` (batch rename field values)
+- `GET /tags`
+- `POST /tags` (create tag option)
 
 ## 7) Data/State Notes for Mobile
 - Persist `access_token` + `refresh_token` in secure storage (Keychain/Keystore).
@@ -156,12 +188,17 @@ This document defines how to build a mobile app with feature parity to the curre
 - Optional enhancement:
   - expose explicit resized preview URL in API response to optimize mobile bandwidth.
 
+### Gap D: Dynamic filter dictionaries are frontend-local
+- Current dynamic additions for `brand/series/scale` in Filter Management are client-local (local storage), not server-persisted dictionary resources.
+- Suggested backend enhancement:
+  - add dedicated filter dictionary endpoints/resources (e.g. `/filters/brands`, `/filters/series`, `/filters/scales`) for create/list/delete/rename with auth controls.
+
 ## 9) Suggested Mobile Implementation Sequence
 1. Auth + token refresh infrastructure.
 2. Kits list + search filters + detail read-only.
-3. Assets upload/gallery + thumbnail source selection.
-4. Links and timeline CRUD.
-5. Tags management + settings + polish.
+3. Kit detail editing (tags/assets/links/timeline).
+4. Filter Management (auth-only) and bulk rename utilities.
+5. Thumbnail source polish + settings.
 
 ## 10) Definition of Done for Mobile Parity
 - Every P0 capability above is available and validated against the same backend.
