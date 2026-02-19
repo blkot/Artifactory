@@ -190,3 +190,33 @@ def test_kits_search_supports_multiple_brand_series_scale_and_tag_filters(client
     assert payload["total"] == 2
     names = {item["name"] for item in payload["items"]}
     assert names == {"RG Hi-Nu", "Frame Arms Baselard"}
+
+
+def test_kits_search_filters_are_case_insensitive_for_scale_brand_status_and_grade(client) -> None:
+    create_response = client.post(
+        "/api/v1/kits",
+        json={
+            "name": "Case Sensitivity Kit",
+            "grade": "RG",
+            "series": "Universal Century",
+            "brand": "Bandai",
+            "scale": "1/144",
+            "build_status": "IN_PROGRESS",
+            "tag_ids": [],
+        },
+    )
+    assert create_response.status_code == 201
+
+    response = client.get(
+        "/api/v1/kits/search",
+        params=[
+            ("grade", "rg"),
+            ("build_status", "in_progress"),
+            ("brand", "bAnDaI"),
+            ("scale", "1/144"),
+        ],
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total"] == 1
+    assert payload["items"][0]["name"] == "Case Sensitivity Kit"

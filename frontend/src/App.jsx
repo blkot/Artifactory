@@ -42,6 +42,30 @@ const EMPTY_KIT_FORM = {
   tag_ids: [],
 };
 
+function caseFold(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function buildCaseInsensitiveFacetOptions(rows) {
+  const fields = ["brand", "series", "scale"];
+  const options = { brand: [], series: [], scale: [] };
+
+  for (const field of fields) {
+    const map = new Map();
+    for (const row of rows) {
+      const raw = String(row[field] || "").trim();
+      if (!raw) continue;
+      const key = caseFold(raw);
+      if (!map.has(key)) {
+        map.set(key, raw);
+      }
+    }
+    options[field] = Array.from(map.values()).sort((a, b) => a.localeCompare(b));
+  }
+
+  return options;
+}
+
 function buildKitEditForm(kit) {
   return {
     name: kit.name || "",
@@ -1083,10 +1107,14 @@ function FilterManagementPage({ token }) {
     for (const kit of kits) {
       const value = String(kit[field] || "").trim();
       if (!value) continue;
-      map.set(value, (map.get(value) || 0) + 1);
+      const key = caseFold(value);
+      if (!map.has(key)) {
+        map.set(key, { value, count: 1 });
+      } else {
+        map.get(key).count += 1;
+      }
     }
-    return Array.from(map.entries())
-      .map(([value, count]) => ({ value, count }))
+    return Array.from(map.values())
       .sort((a, b) => a.value.localeCompare(b.value));
   }, [kits, field]);
 
@@ -1140,7 +1168,8 @@ function FilterManagementPage({ token }) {
   async function applyRename() {
     const nextValue = toValue.trim();
     if (!fromValue || !nextValue || fromValue === nextValue) return;
-    const affected = kits.filter((kit) => String(kit[field] || "") === fromValue);
+    const fromKey = caseFold(fromValue);
+    const affected = kits.filter((kit) => caseFold(kit[field]) === fromKey);
     if (affected.length === 0) return;
     setSaving(true);
     setError("");
@@ -1268,11 +1297,7 @@ export default function App() {
       setTags(tagRes || []);
       setStats(statsRes);
       const rows = kitRes.items || [];
-      setKitFacetOptions({
-        brand: [...new Set(rows.map((item) => item.brand).filter(Boolean))].sort(),
-        series: [...new Set(rows.map((item) => item.series).filter(Boolean))].sort(),
-        scale: [...new Set(rows.map((item) => item.scale).filter(Boolean))].sort(),
-      });
+      setKitFacetOptions(buildCaseInsensitiveFacetOptions(rows));
     } catch (err) {
       setError(toUserMessage(err));
     } finally {

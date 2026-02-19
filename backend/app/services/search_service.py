@@ -1,4 +1,4 @@
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.models.kit import Kit
@@ -26,15 +26,21 @@ class SearchService:
         if q:
             query = query.filter(Kit.name.ilike(f"%{q}%"))
         if grade:
-            query = query.filter(Kit.grade.in_(grade))
+            normalized_grades = [item.strip().upper() for item in grade if item and item.strip()]
+            if normalized_grades:
+                query = query.filter(Kit.grade.in_(normalized_grades))
         if brand:
             query = query.filter(or_(*[Kit.brand.ilike(f"%{item}%") for item in brand]))
         if series:
             query = query.filter(or_(*[Kit.series.ilike(f"%{item}%") for item in series]))
         if build_status:
-            query = query.filter(Kit.build_status.in_(build_status))
+            normalized_status = [item.strip().upper() for item in build_status if item and item.strip()]
+            if normalized_status:
+                query = query.filter(Kit.build_status.in_(normalized_status))
         if scale:
-            query = query.filter(Kit.scale.in_(scale))
+            normalized_scale = [item.strip().lower() for item in scale if item and item.strip()]
+            if normalized_scale:
+                query = query.filter(func.lower(Kit.scale).in_(normalized_scale))
         if tag:
             query = query.join(Kit.tags).filter(or_(*[Tag.name.ilike(f"%{item}%") for item in tag])).distinct()
 
