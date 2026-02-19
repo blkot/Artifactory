@@ -61,10 +61,10 @@ def post_kit(
 )
 def search_kits(
     q: str | None = None,
-    grade: str | None = None,
+    grade: list[str] | None = Query(default=None),
     brand: list[str] | None = Query(default=None),
     series: list[str] | None = Query(default=None),
-    build_status: str | None = None,
+    build_status: list[str] | None = Query(default=None),
     scale: list[str] | None = Query(default=None),
     tag: list[str] | None = Query(default=None),
     skip: int = 0,

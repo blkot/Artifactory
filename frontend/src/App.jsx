@@ -20,10 +20,10 @@ const THUMBNAIL_PREF_STORAGE_KEY = "artifactory_kit_thumbnail_asset_map";
 
 const EMPTY_KIT_FILTERS = {
   q: "",
-  grade: "",
+  grade: [],
   brand: [],
   series: [],
-  build_status: "",
+  build_status: [],
   scale: [],
   tag: [],
 };
@@ -237,9 +237,9 @@ function KitsPage({
           subtitle="Search, filter, and route into per-kit workspaces."
         />
         <article className="panel kits-banner-panel">
-          <div className="panel-head">
+          <div className="panel-head kits-banner-head">
             <h2>Kits</h2>
-            <NavLink to="/kits/new" className="inline-cta">
+            <NavLink to="/kits/new" className="inline-cta inline-cta-compact">
               + Add Kit
             </NavLink>
           </div>
@@ -249,24 +249,44 @@ function KitsPage({
               event.preventDefault();
             }}
           >
-            <input placeholder="Search by name" value={filters.q} onChange={(e) => onFilterChange("q", e.target.value)} />
-            <select value={filters.grade} onChange={(e) => onFilterChange("grade", e.target.value)}>
-              <option value="">All grades</option>
-              {GRADES.map((grade) => (
-                <option key={grade} value={grade}>
-                  {grade}
-                </option>
-              ))}
-            </select>
-            <select value={filters.build_status} onChange={(e) => onFilterChange("build_status", e.target.value)}>
-              <option value="">All status</option>
-              {BUILD_STATUS.map((state) => (
-                <option key={state} value={state}>
-                  {state}
-                </option>
-              ))}
-            </select>
-            <div className="multi-filter">
+            <div className="kits-search-sticky">
+              <input placeholder="Search by name" value={filters.q} onChange={(e) => onFilterChange("q", e.target.value)} />
+            </div>
+            <div className="kits-filters-scroll">
+              <div className="multi-filter">
+                <p>Grade</p>
+                <div className="check-grid">
+                  {GRADES.map((item) => (
+                    <label key={`grade-${item}`} className={filters.grade.includes(item) ? "filter-chip active" : "filter-chip"}>
+                      <input
+                        type="checkbox"
+                        checked={filters.grade.includes(item)}
+                        onChange={() => onToggleFilterValue("grade", item)}
+                      />
+                      <span>{item}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="multi-filter">
+                <p>Status</p>
+                <div className="check-grid">
+                  {BUILD_STATUS.map((item) => (
+                    <label
+                      key={`status-${item}`}
+                      className={filters.build_status.includes(item) ? "filter-chip active" : "filter-chip"}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={filters.build_status.includes(item)}
+                        onChange={() => onToggleFilterValue("build_status", item)}
+                      />
+                      <span>{item}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="multi-filter">
               <p>Brand</p>
               <div className="check-grid">
                 {facetOptions.brand.map((item) => (
@@ -334,6 +354,7 @@ function KitsPage({
               <button type="button" onClick={onClearFilters}>
                 Clear
               </button>
+            </div>
             </div>
           </form>
           <p className="muted inventory-meta">

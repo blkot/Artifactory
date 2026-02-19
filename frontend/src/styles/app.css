@@ -461,7 +461,9 @@ button:disabled {
   position: static;
   height: 100%;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .kits-list-panel {
@@ -489,12 +491,43 @@ button:disabled {
 
 .kits-filter-stack {
   grid-template-columns: 1fr;
+  grid-template-rows: auto minmax(0, 1fr);
+  align-items: stretch;
+  min-height: 0;
+  flex: 1;
+}
+
+.kits-search-sticky {
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  z-index: 1;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid #e3ddd3;
+}
+
+.kits-filters-scroll {
+  min-height: 0;
+  overflow: auto;
+  padding-top: 0.5rem;
+  padding-right: 0.2rem;
+  display: grid;
+  gap: 0.6rem;
 }
 
 .multi-filter p {
   margin: 0 0 0.35rem;
   font-size: 0.85rem;
   color: var(--muted);
+}
+
+.kits-banner-head {
+  margin-bottom: 0.35rem;
+}
+
+.kits-banner-head h2 {
+  margin: 0;
+  font-size: 1rem;
 }
 
 .check-grid {
@@ -929,6 +962,11 @@ th {
   border-radius: 999px;
   padding: 0.45rem 0.85rem;
   font-size: 0.9rem;
+}
+
+.inline-cta-compact {
+  padding: 0.28rem 0.65rem;
+  font-size: 0.8rem;
 }
 
 .error-banner {
