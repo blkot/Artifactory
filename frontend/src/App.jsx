@@ -232,9 +232,6 @@ function KitsPage({
   return (
     <section className="page kits-inventory-page kits-inventory-two-column">
       <aside className="kits-left-stack">
-        <header className="workspace-mini-header">
-          <p>Collection Workspace</p>
-        </header>
         <AppHeader
           title="Kit Inventory"
           subtitle="Search, filter, and route into per-kit workspaces."
