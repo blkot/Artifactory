@@ -17,6 +17,7 @@ const LINK_CATEGORIES = ["BUILD_LOG", "REVIEW", "TUTORIAL", "GALLERY"];
 const ASSET_TYPES = ["BOX_ART", "MANUAL", "BUILD_PHOTO", "REFERENCE_IMAGE", "VIDEO", "DOCUMENT"];
 const PAGE_SIZE = 10;
 const THUMBNAIL_PREF_STORAGE_KEY = "artifactory_kit_thumbnail_asset_map";
+const CUSTOM_FACET_STORAGE_KEY = "artifactory_custom_facet_values";
 
 const EMPTY_KIT_FILTERS = {
   q: "",
@@ -46,12 +47,20 @@ function caseFold(value) {
   return String(value || "").trim().toLowerCase();
 }
 
-function buildCaseInsensitiveFacetOptions(rows) {
+function buildCaseInsensitiveFacetOptions(rows, customValues = {}) {
   const fields = ["brand", "series", "scale"];
   const options = { brand: [], series: [], scale: [] };
 
   for (const field of fields) {
     const map = new Map();
+    for (const rawCustom of customValues[field] || []) {
+      const raw = String(rawCustom || "").trim();
+      if (!raw) continue;
+      const key = caseFold(raw);
+      if (!map.has(key)) {
+        map.set(key, raw);
+      }
+    }
     for (const row of rows) {
       const raw = String(row[field] || "").trim();
       if (!raw) continue;
@@ -877,7 +886,12 @@ function KitWorkspacePage({
                     value={newTagName}
                     onChange={(e) => setNewTagName(e.target.value)}
                   />
-                  <input type="color" value={newTagColor} onChange={(e) => setNewTagColor(e.target.value)} />
+                  <input
+                    type="color"
+                    className="color-input"
+                    value={newTagColor}
+                    onChange={(e) => setNewTagColor(e.target.value)}
+                  />
                   <button type="button" onClick={createAndAssignTag} disabled={!newTagName.trim()}>
                     Create + Assign
                   </button>
@@ -1086,7 +1100,7 @@ function SettingsPage({ token }) {
   );
 }
 
-function FilterManagementPage({ token }) {
+function FilterManagementPage({ token, customFacetValues, onCreateCustomFacetValue }) {
   const [kits, setKits] = useState([]);
   const [tags, setTags] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -1095,28 +1109,56 @@ function FilterManagementPage({ token }) {
   const [field, setField] = useState("brand");
   const [fromValue, setFromValue] = useState("");
   const [toValue, setToValue] = useState("");
+  const [newValue, setNewValue] = useState("");
+  const [newTagColor, setNewTagColor] = useState("#d9822b");
 
   const fieldOptions = [
     { value: "brand", label: "Brand" },
     { value: "series", label: "Series" },
     { value: "scale", label: "Scale" },
+    { value: "tag", label: "Tag" },
   ];
 
   const facetSummary = useMemo(() => {
     const map = new Map();
-    for (const kit of kits) {
-      const value = String(kit[field] || "").trim();
-      if (!value) continue;
-      const key = caseFold(value);
-      if (!map.has(key)) {
-        map.set(key, { value, count: 1 });
-      } else {
-        map.get(key).count += 1;
+    if (field === "tag") {
+      for (const tag of tags) {
+        const value = String(tag.name || "").trim();
+        if (!value) continue;
+        map.set(caseFold(value), { value, count: 0 });
+      }
+      for (const kit of kits) {
+        for (const tag of kit.tags || []) {
+          const value = String(tag.name || "").trim();
+          if (!value) continue;
+          const key = caseFold(value);
+          if (!map.has(key)) {
+            map.set(key, { value, count: 1 });
+          } else {
+            map.get(key).count += 1;
+          }
+        }
+      }
+    } else {
+      for (const custom of customFacetValues[field] || []) {
+        const value = String(custom || "").trim();
+        if (!value) continue;
+        map.set(caseFold(value), { value, count: 0 });
+      }
+      for (const kit of kits) {
+        const value = String(kit[field] || "").trim();
+        if (!value) continue;
+        const key = caseFold(value);
+        if (!map.has(key)) {
+          map.set(key, { value, count: 1 });
+        } else {
+          map.get(key).count += 1;
+        }
       }
     }
     return Array.from(map.values())
       .sort((a, b) => a.value.localeCompare(b.value));
-  }, [kits, field]);
+  }, [kits, tags, field, customFacetValues]);
 
   async function loadData() {
     setLoading(true);
@@ -1166,6 +1208,7 @@ function FilterManagementPage({ token }) {
   }, [facetSummary, fromValue]);
 
   async function applyRename() {
+    if (field === "tag") return;
     const nextValue = toValue.trim();
     if (!fromValue || !nextValue || fromValue === nextValue) return;
     const fromKey = caseFold(fromValue);
@@ -1179,6 +1222,27 @@ function FilterManagementPage({ token }) {
       }
       setToValue("");
       await loadData();
+    } catch (err) {
+      setError(toUserMessage(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function createFilterValue() {
+    const value = newValue.trim();
+    if (!value) return;
+    setSaving(true);
+    setError("");
+    try {
+      if (field === "tag") {
+        await api.createTag({ name: value, color: newTagColor });
+        setNewTagColor("#d9822b");
+        await loadData();
+      } else {
+        onCreateCustomFacetValue(field, value);
+      }
+      setNewValue("");
     } catch (err) {
       setError(toUserMessage(err));
     } finally {
@@ -1206,13 +1270,29 @@ function FilterManagementPage({ token }) {
             ))}
           </select>
           <input placeholder="Rename to..." value={toValue} onChange={(e) => setToValue(e.target.value)} />
-          <button type="button" onClick={applyRename} disabled={saving || !fromValue || !toValue.trim()}>
+          <button
+            type="button"
+            onClick={applyRename}
+            disabled={saving || field === "tag" || !fromValue || !toValue.trim()}
+          >
             {saving ? "Applying..." : "Apply Rename"}
           </button>
           <button type="button" onClick={() => void loadData()} disabled={loading || saving}>
             {loading ? "Refreshing..." : "Refresh Data"}
           </button>
         </div>
+        <div className="form-grid">
+          <input placeholder={`Create new ${field} value`} value={newValue} onChange={(e) => setNewValue(e.target.value)} />
+          {field === "tag" ? (
+            <input type="color" className="color-input" value={newTagColor} onChange={(e) => setNewTagColor(e.target.value)} />
+          ) : (
+            <div />
+          )}
+          <button type="button" onClick={createFilterValue} disabled={saving || !newValue.trim()}>
+            Create Value
+          </button>
+        </div>
+        <p className="muted">Static filter: status ({BUILD_STATUS.join(", ")}).</p>
         <p className="muted inventory-meta">
           {facetSummary.length} values in selected field · {kits.length} total kits · {tags.length} tags
         </p>
@@ -1275,6 +1355,21 @@ export default function App() {
       return {};
     }
   });
+  const [customFacetValues, setCustomFacetValues] = useState(() => {
+    if (typeof window === "undefined") return { brand: [], series: [], scale: [] };
+    const raw = window.localStorage.getItem(CUSTOM_FACET_STORAGE_KEY);
+    if (!raw) return { brand: [], series: [], scale: [] };
+    try {
+      const parsed = JSON.parse(raw);
+      return {
+        brand: Array.isArray(parsed?.brand) ? parsed.brand : [],
+        series: Array.isArray(parsed?.series) ? parsed.series : [],
+        scale: Array.isArray(parsed?.scale) ? parsed.scale : [],
+      };
+    } catch {
+      return { brand: [], series: [], scale: [] };
+    }
+  });
   const [tags, setTags] = useState([]);
   const [kitFacetOptions, setKitFacetOptions] = useState({ brand: [], series: [], scale: [] });
   const [stats, setStats] = useState(null);
@@ -1297,7 +1392,7 @@ export default function App() {
       setTags(tagRes || []);
       setStats(statsRes);
       const rows = kitRes.items || [];
-      setKitFacetOptions(buildCaseInsensitiveFacetOptions(rows));
+      setKitFacetOptions(buildCaseInsensitiveFacetOptions(rows, customFacetValues));
     } catch (err) {
       setError(toUserMessage(err));
     } finally {
@@ -1333,7 +1428,7 @@ export default function App() {
 
   useEffect(() => {
     void loadReferenceData();
-  }, [token]);
+  }, [token, customFacetValues]);
 
   useEffect(() => {
     void loadKits({ nextPage: 1, nextFilters: kitFilters, append: false });
@@ -1379,6 +1474,11 @@ export default function App() {
     if (typeof window === "undefined") return;
     window.localStorage.setItem(THUMBNAIL_PREF_STORAGE_KEY, JSON.stringify(preferredThumbnailAssetMap));
   }, [preferredThumbnailAssetMap]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(CUSTOM_FACET_STORAGE_KEY, JSON.stringify(customFacetValues));
+  }, [customFacetValues]);
 
   async function handleCreateKit(payload) {
     const { imageFiles = [], imageAssetType = "BOX_ART", ...kitPayload } = payload;
@@ -1476,6 +1576,21 @@ export default function App() {
     });
   }
 
+  function createCustomFacetValue(field, value) {
+    if (!["brand", "series", "scale"].includes(field)) return;
+    const raw = String(value || "").trim();
+    if (!raw) return;
+    setCustomFacetValues((prev) => {
+      const current = Array.isArray(prev[field]) ? prev[field] : [];
+      const exists = current.some((item) => caseFold(item) === caseFold(raw));
+      if (exists) return prev;
+      return {
+        ...prev,
+        [field]: [...current, raw].sort((a, b) => a.localeCompare(b)),
+      };
+    });
+  }
+
   const isLoginRoute = location.pathname === "/login";
 
   if (isLoginRoute) {
@@ -1539,7 +1654,17 @@ export default function App() {
           <Route path="/settings" element={<SettingsPage token={token} />} />
           <Route
             path="/settings/filters"
-            element={token ? <FilterManagementPage token={token} /> : <Navigate to="/login" replace />}
+            element={
+              token ? (
+                <FilterManagementPage
+                  token={token}
+                  customFacetValues={customFacetValues}
+                  onCreateCustomFacetValue={createCustomFacetValue}
+                />
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            }
           />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
