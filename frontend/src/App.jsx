@@ -70,7 +70,6 @@ function Sidebar({ token, onLogout }) {
   const items = [
     { to: "/dashboard", label: "Dashboard", short: "DB" },
     { to: "/kits", label: "Kits", short: "KT" },
-    { to: "/tags", label: "Tags", short: "TG" },
     { to: "/settings", label: "Settings", short: "ST" },
   ];
 
@@ -231,13 +230,15 @@ function KitsPage({
   }, [hasMore, loadingMore, onLoadMore]);
 
   return (
-    <section className="page kits-inventory-page">
-      <AppHeader
-        title="Kit Inventory"
-        subtitle="Search, filter, and route into per-kit workspaces."
-      />
+    <section className="page kits-inventory-page kits-inventory-split">
+      <aside className="kits-header-panel">
+        <AppHeader
+          title="Kit Inventory"
+          subtitle="Search, filter, and route into per-kit workspaces."
+        />
+      </aside>
 
-      <section className="kits-layout">
+      <section className="kits-right-stack">
         <article className="panel kits-banner-panel">
           <div className="panel-head">
             <h2>Kits</h2>
@@ -503,6 +504,10 @@ function KitWorkspacePage({
   const [assetForm, setAssetForm] = useState({ type: "DOCUMENT", description: "", is_external_reference: false, file: null });
   const [editForm, setEditForm] = useState(null);
   const [selectedCoverCandidateId, setSelectedCoverCandidateId] = useState(null);
+  const [tagPickerOpen, setTagPickerOpen] = useState(false);
+  const [selectedExistingTagId, setSelectedExistingTagId] = useState("");
+  const [newTagName, setNewTagName] = useState("");
+  const [newTagColor, setNewTagColor] = useState("#d9822b");
   const thumbnailAssetId = thumbnailAssetMap?.[String(kitId)] || null;
   const imageAssets = useMemo(
     () => assets.filter((asset) => asset.mime_type?.startsWith("image/")),
@@ -670,6 +675,53 @@ function KitWorkspacePage({
     onSetThumbnailAsset(Number(kitId), selectedCoverCandidateId);
   }
 
+  async function updateKitTagIds(nextTagIds) {
+    if (!kitId) return;
+    const updated = await api.updateKit(Number(kitId), { tag_ids: nextTagIds });
+    setKit(updated);
+    if (onKitMutated) await onKitMutated();
+  }
+
+  async function removeKitTag(tagId) {
+    if (!kit) return;
+    const nextTagIds = (kit.tags || []).map((tag) => tag.id).filter((id) => id !== tagId);
+    try {
+      await updateKitTagIds(nextTagIds);
+    } catch (err) {
+      setError(toUserMessage(err));
+    }
+  }
+
+  async function assignExistingTag() {
+    if (!kit || !selectedExistingTagId) return;
+    const existing = new Set((kit.tags || []).map((tag) => tag.id));
+    existing.add(Number(selectedExistingTagId));
+    try {
+      await updateKitTagIds(Array.from(existing));
+      setSelectedExistingTagId("");
+      setTagPickerOpen(false);
+    } catch (err) {
+      setError(toUserMessage(err));
+    }
+  }
+
+  async function createAndAssignTag() {
+    if (!kit) return;
+    const name = newTagName.trim();
+    if (!name) return;
+    try {
+      const created = await api.createTag({ name, color: newTagColor });
+      const existing = new Set((kit.tags || []).map((tag) => tag.id));
+      existing.add(created.id);
+      await updateKitTagIds(Array.from(existing));
+      setNewTagName("");
+      setNewTagColor("#d9822b");
+      setTagPickerOpen(false);
+    } catch (err) {
+      setError(toUserMessage(err));
+    }
+  }
+
   if (!kit) {
     return (
       <section className="page">
@@ -745,14 +797,50 @@ function KitWorkspacePage({
           </div>
           <div>
             <h3>Tags</h3>
-            <div className="tag-list">
+            <div className="tag-list kit-tags-list">
               {(kit.tags || []).map((tag) => (
-                <span className="tag active" key={tag.id}>
-                  {tag.name}
-                </span>
+                <button type="button" className="tag active tag-edit-chip" key={tag.id} onClick={() => removeKitTag(tag.id)}>
+                  <span>{tag.name}</span>
+                  <span className="tag-chip-remove" aria-hidden="true">
+                    x
+                  </span>
+                </button>
               ))}
-              {(kit.tags || []).length === 0 ? <span className="muted">No tags linked.</span> : null}
+              <button type="button" className="tag tag-add-chip" onClick={() => setTagPickerOpen((prev) => !prev)}>
+                + Add tag
+              </button>
             </div>
+            {(kit.tags || []).length === 0 ? <span className="muted">No tags linked yet.</span> : null}
+            {tagPickerOpen ? (
+              <div className="tag-picker-panel">
+                <div className="actions-row">
+                  <select value={selectedExistingTagId} onChange={(e) => setSelectedExistingTagId(e.target.value)}>
+                    <option value="">Select existing tag</option>
+                    {allTags
+                      .filter((tag) => !(kit.tags || []).some((assigned) => assigned.id === tag.id))
+                      .map((tag) => (
+                        <option key={`assign-tag-${tag.id}`} value={tag.id}>
+                          {tag.name}
+                        </option>
+                      ))}
+                  </select>
+                  <button type="button" onClick={assignExistingTag} disabled={!selectedExistingTagId}>
+                    Assign
+                  </button>
+                </div>
+                <div className="actions-row">
+                  <input
+                    placeholder="New tag name"
+                    value={newTagName}
+                    onChange={(e) => setNewTagName(e.target.value)}
+                  />
+                  <input type="color" value={newTagColor} onChange={(e) => setNewTagColor(e.target.value)} />
+                  <button type="button" onClick={createAndAssignTag} disabled={!newTagName.trim()}>
+                    Create + Assign
+                  </button>
+                </div>
+              </div>
+            ) : null}
           </div>
           <div className="span-2">
             <div className="cover-panel">
@@ -932,36 +1020,6 @@ function KitWorkspacePage({
           </div>
         </article>
       ) : null}
-    </section>
-  );
-}
-
-function TagsPage({ tags, onCreateTag }) {
-  const [form, setForm] = useState({ name: "", color: "#d9822b" });
-
-  async function submit(event) {
-    event.preventDefault();
-    await onCreateTag(form);
-    setForm({ name: "", color: "#d9822b" });
-  }
-
-  return (
-    <section className="page">
-      <AppHeader title="Tag Library" subtitle="Maintain reusable labels for kits and links." />
-      <article className="panel grid-2">
-        <form className="form-grid" onSubmit={submit}>
-          <input required placeholder="Tag name" value={form.name} onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))} />
-          <input type="color" value={form.color} onChange={(e) => setForm((prev) => ({ ...prev, color: e.target.value }))} />
-          <button type="submit" className="span-2">Create Tag</button>
-        </form>
-        <div className="tag-cloud">
-          {tags.map((tag) => (
-            <span key={tag.id} className="tag active" style={{ borderColor: tag.color || "#d9822b" }}>
-              {tag.name}
-            </span>
-          ))}
-        </div>
-      </article>
     </section>
   );
 }
@@ -1158,15 +1216,6 @@ export default function App() {
     }
   }
 
-  async function handleCreateTag(payload) {
-    try {
-      await api.createTag(payload);
-      await loadReferenceData();
-    } catch (err) {
-      setError(toUserMessage(err));
-    }
-  }
-
   async function handleLogin(username, password) {
     setError("");
     try {
@@ -1297,7 +1346,6 @@ export default function App() {
               />
             }
           />
-          <Route path="/tags" element={<TagsPage tags={tags} onCreateTag={handleCreateTag} />} />
           <Route path="/settings" element={<SettingsPage token={token} />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
