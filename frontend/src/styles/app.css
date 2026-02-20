@@ -20,6 +20,7 @@
   --sidebar-expanded-width: 260px;
   --sidebar-brand-height: 88px;
   --sidebar-session-height: 108px;
+  --universal-input-width: 250px;
 }
 
 * {
@@ -969,7 +970,7 @@ th {
 .create-filter-row {
   margin-top: 0.85rem;
   padding-top: 0.75rem;
-  grid-template-columns: 280px auto auto;
+  grid-template-columns: var(--universal-input-width) auto auto;
   align-items: center;
   justify-content: start;
 }
@@ -984,16 +985,17 @@ th {
   display: none;
 }
 
-.create-filter-row input:not(.color-input) {
-  width: 280px;
-  max-width: 100%;
-}
-
 .filter-action-btn {
   padding: 0.42rem 0.62rem;
   font-size: 0.86rem;
   min-width: 92px;
   justify-self: start;
+}
+
+.filter-management-row input:not(.color-input),
+.filter-management-row select {
+  width: var(--universal-input-width);
+  max-width: 100%;
 }
 
 .facet-summary-grid {

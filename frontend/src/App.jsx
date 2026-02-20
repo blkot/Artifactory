@@ -1269,8 +1269,8 @@ function FilterManagementPage({
   return (
     <section className="page">
       <AppHeader title="Filter Management" subtitle="Authenticated workspace for maintaining filter source values." error={error} />
-      <article className="panel">
-        <div className="form-grid">
+      <article className="panel filter-management-panel">
+        <div className="form-grid filter-management-row">
           <select value={field} onChange={(e) => setField(e.target.value)}>
             {fieldOptions.map((item) => (
               <option key={item.value} value={item.value}>
@@ -1295,7 +1295,7 @@ function FilterManagementPage({
             {saving ? "Applying..." : "Apply Rename"}
           </button>
         </div>
-        <div className="form-grid create-filter-row">
+        <div className="form-grid filter-management-row create-filter-row">
           <input placeholder={`Create new ${field} value`} value={newValue} onChange={(e) => setNewValue(e.target.value)} />
           <button className="filter-action-btn" type="button" onClick={createFilterValue} disabled={saving || !newValue.trim()}>
             Create
