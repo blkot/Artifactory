@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 
 from app.models.tag import Tag
-from app.schemas.tag import TagCreate
+from app.schemas.tag import TagCreate, TagUpdate
 
 
 def list_tags(db: Session) -> list[Tag]:
@@ -19,4 +19,15 @@ def create_tag(db: Session, payload: TagCreate) -> Tag:
     db.add(tag)
     db.commit()
     db.refresh(tag)
+    return tag
+
+
+def get_tag(db: Session, tag_id: int) -> Tag | None:
+    return db.query(Tag).filter(Tag.id == tag_id).first()
+
+
+def update_tag(tag: Tag, payload: TagUpdate) -> Tag:
+    updates = payload.model_dump(exclude_unset=True)
+    for field, value in updates.items():
+        setattr(tag, field, value)
     return tag

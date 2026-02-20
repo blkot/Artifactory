@@ -1100,7 +1100,12 @@ function SettingsPage({ token }) {
   );
 }
 
-function FilterManagementPage({ token, customFacetValues, onCreateCustomFacetValue }) {
+function FilterManagementPage({
+  token,
+  customFacetValues,
+  onCreateCustomFacetValue,
+  onRenameCustomFacetValue,
+}) {
   const [kits, setKits] = useState([]);
   const [tags, setTags] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -1208,17 +1213,24 @@ function FilterManagementPage({ token, customFacetValues, onCreateCustomFacetVal
   }, [facetSummary, fromValue]);
 
   async function applyRename() {
-    if (field === "tag") return;
     const nextValue = toValue.trim();
     if (!fromValue || !nextValue || fromValue === nextValue) return;
     const fromKey = caseFold(fromValue);
-    const affected = kits.filter((kit) => caseFold(kit[field]) === fromKey);
-    if (affected.length === 0) return;
     setSaving(true);
     setError("");
     try {
-      for (const kit of affected) {
-        await api.updateKit(kit.id, { [field]: nextValue });
+      if (field === "tag") {
+        const matchedTags = tags.filter((tag) => caseFold(tag.name) === fromKey);
+        if (matchedTags.length === 0) return;
+        for (const tag of matchedTags) {
+          await api.updateTag(tag.id, { name: nextValue });
+        }
+      } else {
+        const affected = kits.filter((kit) => caseFold(kit[field]) === fromKey);
+        for (const kit of affected) {
+          await api.updateKit(kit.id, { [field]: nextValue });
+        }
+        onRenameCustomFacetValue(field, fromValue, nextValue);
       }
       setToValue("");
       await loadData();
@@ -1273,7 +1285,7 @@ function FilterManagementPage({ token, customFacetValues, onCreateCustomFacetVal
           <button
             type="button"
             onClick={applyRename}
-            disabled={saving || field === "tag" || !fromValue || !toValue.trim()}
+            disabled={saving || !fromValue || !toValue.trim()}
           >
             {saving ? "Applying..." : "Apply Rename"}
           </button>
@@ -1591,6 +1603,34 @@ export default function App() {
     });
   }
 
+  function renameCustomFacetValue(field, fromValue, toValue) {
+    if (!["brand", "series", "scale"].includes(field)) return;
+    const fromKey = caseFold(fromValue);
+    const toRaw = String(toValue || "").trim();
+    if (!fromKey || !toRaw) return;
+    setCustomFacetValues((prev) => {
+      const current = Array.isArray(prev[field]) ? prev[field] : [];
+      const nextMap = new Map();
+      for (const item of current) {
+        const raw = String(item || "").trim();
+        if (!raw) continue;
+        const key = caseFold(raw);
+        if (key === fromKey) {
+          nextMap.set(caseFold(toRaw), toRaw);
+        } else if (!nextMap.has(key)) {
+          nextMap.set(key, raw);
+        }
+      }
+      if (!nextMap.has(caseFold(toRaw))) {
+        nextMap.set(caseFold(toRaw), toRaw);
+      }
+      return {
+        ...prev,
+        [field]: Array.from(nextMap.values()).sort((a, b) => a.localeCompare(b)),
+      };
+    });
+  }
+
   const isLoginRoute = location.pathname === "/login";
 
   if (isLoginRoute) {
@@ -1660,6 +1700,7 @@ export default function App() {
                   token={token}
                   customFacetValues={customFacetValues}
                   onCreateCustomFacetValue={createCustomFacetValue}
+                  onRenameCustomFacetValue={renameCustomFacetValue}
                 />
               ) : (
                 <Navigate to="/login" replace />

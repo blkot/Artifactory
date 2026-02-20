@@ -116,6 +116,7 @@ export const api = {
   assetFileUrl: (id) => `${API_BASE_URL}/assets/${id}/file`,
   getTags: () => request("/tags"),
   createTag: (payload) => request("/tags", { method: "POST", body: JSON.stringify(payload) }),
+  updateTag: (id, payload) => request(`/tags/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
   getStats: () => request("/stats"),
   getLinks: () => request("/links"),
   createLink: (payload) => request("/links", { method: "POST", body: JSON.stringify(payload) }),
