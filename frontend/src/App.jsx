@@ -1212,6 +1212,10 @@ function FilterManagementPage({
     }
   }, [facetSummary, fromValue]);
 
+  useEffect(() => {
+    setToValue(fromValue || "");
+  }, [field, fromValue]);
+
   async function applyRename() {
     const nextValue = toValue.trim();
     if (!fromValue || !nextValue || fromValue === nextValue) return;
