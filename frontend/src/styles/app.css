@@ -996,6 +996,7 @@ th {
 .filter-management-row select {
   width: var(--universal-input-width);
   max-width: 100%;
+  justify-self: start;
 }
 
 .facet-summary-grid {
