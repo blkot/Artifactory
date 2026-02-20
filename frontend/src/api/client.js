@@ -58,6 +58,13 @@ export async function request(path, options = {}) {
 
   const data = await parseBody(response);
   if (!response.ok) {
+    if (response.status === 401) {
+      // Expired/invalid token: clear local auth state and notify UI.
+      setAuthToken(null);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("artifactory-auth-expired"));
+      }
+    }
     const retryAfter = response.headers.get("Retry-After");
     throw new ApiError(
       data?.message || data?.detail || "Request failed",

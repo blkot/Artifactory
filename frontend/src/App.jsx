@@ -1449,6 +1449,16 @@ export default function App() {
   }, [token]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return () => {};
+    const onAuthExpired = () => {
+      setToken(null);
+      setError("Session expired. Please log in again.");
+    };
+    window.addEventListener("artifactory-auth-expired", onAuthExpired);
+    return () => window.removeEventListener("artifactory-auth-expired", onAuthExpired);
+  }, []);
+
+  useEffect(() => {
     if (kits.length === 0) {
       setKitPreviewMap({});
       return;
