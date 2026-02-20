@@ -989,9 +989,11 @@ th {
   max-width: 100%;
 }
 
-.create-filter-row button {
+.filter-action-btn {
   padding: 0.42rem 0.62rem;
   font-size: 0.86rem;
+  min-width: 92px;
+  justify-self: start;
 }
 
 .facet-summary-grid {

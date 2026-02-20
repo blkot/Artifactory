@@ -1287,19 +1287,17 @@ function FilterManagementPage({
           </select>
           <input placeholder="Rename to..." value={toValue} onChange={(e) => setToValue(e.target.value)} />
           <button
+            className="filter-action-btn"
             type="button"
             onClick={applyRename}
             disabled={saving || !fromValue || !toValue.trim()}
           >
             {saving ? "Applying..." : "Apply Rename"}
           </button>
-          <button type="button" onClick={() => void loadData()} disabled={loading || saving}>
-            {loading ? "Refreshing..." : "Refresh Data"}
-          </button>
         </div>
         <div className="form-grid create-filter-row">
           <input placeholder={`Create new ${field} value`} value={newValue} onChange={(e) => setNewValue(e.target.value)} />
-          <button type="button" onClick={createFilterValue} disabled={saving || !newValue.trim()}>
+          <button className="filter-action-btn" type="button" onClick={createFilterValue} disabled={saving || !newValue.trim()}>
             Create
           </button>
           {field === "tag" ? (
