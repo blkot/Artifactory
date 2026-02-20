@@ -969,16 +969,29 @@ th {
 .create-filter-row {
   margin-top: 0.85rem;
   padding-top: 0.75rem;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: 280px auto auto;
   align-items: center;
+  justify-content: start;
 }
 
 .create-filter-row .color-input {
   justify-self: start;
+  width: 1.9rem;
+  height: 1.9rem;
 }
 
 .create-filter-row > div:empty {
   display: none;
+}
+
+.create-filter-row input:not(.color-input) {
+  width: 280px;
+  max-width: 100%;
+}
+
+.create-filter-row button {
+  padding: 0.42rem 0.62rem;
+  font-size: 0.86rem;
 }
 
 .facet-summary-grid {
