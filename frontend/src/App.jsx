@@ -1299,14 +1299,14 @@ function FilterManagementPage({
         </div>
         <div className="form-grid create-filter-row">
           <input placeholder={`Create new ${field} value`} value={newValue} onChange={(e) => setNewValue(e.target.value)} />
+          <button type="button" onClick={createFilterValue} disabled={saving || !newValue.trim()}>
+            Create
+          </button>
           {field === "tag" ? (
             <input type="color" className="color-input" value={newTagColor} onChange={(e) => setNewTagColor(e.target.value)} />
           ) : (
             <div />
           )}
-          <button type="button" onClick={createFilterValue} disabled={saving || !newValue.trim()}>
-            Create Value
-          </button>
         </div>
         <p className="muted">Static filter: status ({BUILD_STATUS.join(", ")}).</p>
         <p className="muted inventory-meta">
