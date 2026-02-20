@@ -21,6 +21,7 @@
   --sidebar-brand-height: 88px;
   --sidebar-session-height: 108px;
   --universal-input-width: 250px;
+  --filter-control-height: 48px;
 }
 
 * {
@@ -1022,6 +1023,12 @@ th {
 .filter-management-row .filter-action-btn {
   min-width: 110px;
   padding: 0.4rem 0.58rem;
+}
+
+.filter-management-row select,
+.filter-management-row input:not(.color-input),
+.filter-management-row .filter-action-btn {
+  height: var(--filter-control-height);
 }
 
 .facet-summary-grid {
