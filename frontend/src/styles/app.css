@@ -999,6 +999,31 @@ th {
   justify-self: start;
 }
 
+.filter-management-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.filter-management-row > * {
+  flex: 0 0 auto;
+}
+
+.filter-management-row select:first-child {
+  width: 160px;
+}
+
+.filter-management-row select:nth-child(2),
+.filter-management-row input:not(.color-input) {
+  width: 260px;
+}
+
+.filter-management-row .filter-action-btn {
+  min-width: 110px;
+  padding: 0.4rem 0.58rem;
+}
+
 .facet-summary-grid {
   margin-top: 0.8rem;
   display: grid;
