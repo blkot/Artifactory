@@ -10,7 +10,8 @@ from app.core.security import create_access_token, create_refresh_token, decode_
 from app.crud.user import create_user, get_by_email, get_by_username
 from app.db import get_db
 from app.models.user import User
-from app.schemas.auth import RefreshTokenRequest, Token, UserCreate, UserRead
+from app.models.revoked_token import RevokedToken
+from app.schemas.auth import LogoutRequest, RefreshTokenRequest, Token, UserCreate, UserRead
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -75,12 +76,38 @@ def refresh_access_token(payload: RefreshTokenRequest, db: Session = Depends(get
     if not user:
         raise HTTPException(status_code=401, detail="Invalid refresh token")
 
+    jti = decoded.get("jti")
+    if jti and db.query(RevokedToken).filter(RevokedToken.token_jti == jti).first():
+        raise HTTPException(status_code=401, detail="Refresh token has been revoked")
+
     settings = get_settings()
     access_token = create_access_token(
         subject=user.username,
         expires_delta=timedelta(minutes=settings.access_token_expire_minutes),
     )
     return Token(access_token=access_token)
+
+
+@router.post(
+    "/logout",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Logout",
+    description="Revoke a refresh token so it can no longer be used.",
+    responses={401: {"description": "Invalid refresh token"}},
+)
+def logout(payload: LogoutRequest, db: Session = Depends(get_db)) -> None:
+    decoded = decode_token(payload.refresh_token)
+    if not decoded or decoded.get("type") != "refresh":
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+
+    jti = decoded.get("jti")
+    if not jti:
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+
+    existing = db.query(RevokedToken).filter(RevokedToken.token_jti == jti).first()
+    if not existing:
+        db.add(RevokedToken(token_jti=jti, reason="logout"))
+        db.commit()
 
 
 @router.get(
