@@ -1,6 +1,8 @@
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1";
 const TOKEN_STORAGE_KEY = "artifactory_access_token";
 let authToken = null;
+const REFRESH_TOKEN_STORAGE_KEY = "artifactory_refresh_token";
+let refreshPromise = null;
 
 export class ApiError extends Error {
   constructor(message, status = 0, details = null, retryAfter = null) {
@@ -59,9 +61,70 @@ export async function request(path, options = {}) {
   const data = await parseBody(response);
   if (!response.ok) {
     if (response.status === 401) {
-      // Expired/invalid token: clear local auth state and notify UI.
+      // Skip refresh for the refresh endpoint itself (no infinite loop).
+      if (!path.startsWith("/auth/refresh")) {
+        const refreshToken = typeof window !== "undefined"
+          ? window.localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY)
+          : null;
+        if (refreshToken) {
+          try {
+            // Acquire the refresh lock: if another request is already refreshing,
+            // wait for it instead of firing a duplicate call.
+            if (!refreshPromise) {
+              refreshPromise = (async () => {
+                try {
+                  const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ refresh_token: refreshToken }),
+                  });
+                  if (!res.ok) {
+                    throw new Error("refresh failed");
+                  }
+                  const payload = await res.json();
+                  setAuthToken(payload.access_token);
+                  return payload.access_token;
+                } finally {
+                  refreshPromise = null;
+                }
+              })();
+            }
+            const newToken = await refreshPromise;
+            // Retry the original request with the new access token.
+            const retryHeaders = { ...(options.headers || {}) };
+            if (!retryHeaders.Authorization) {
+              retryHeaders.Authorization = `Bearer ${newToken}`;
+            }
+            if (!retryHeaders["Content-Type"] && options.body && !(options.body instanceof FormData)) {
+              retryHeaders["Content-Type"] = "application/json";
+            }
+            const retryResponse = await fetch(`${API_BASE_URL}${path}`, {
+              ...options,
+              headers: retryHeaders,
+            });
+            if (retryResponse.status === 204) {
+              return null;
+            }
+            const retryData = await parseBody(retryResponse);
+            if (!retryResponse.ok) {
+              const retryRetryAfter = retryResponse.headers.get("Retry-After");
+              throw new ApiError(
+                retryData?.message || retryData?.detail || "Request failed",
+                retryResponse.status,
+                retryData?.details || null,
+                retryRetryAfter ? Number(retryRetryAfter) : null,
+              );
+            }
+            return retryData;
+          } catch (_) {
+            // Refresh or retry failed — fall through to logout below.
+          }
+        }
+      }
+      // Refresh not possible: clear auth and notify UI.
       setAuthToken(null);
       if (typeof window !== "undefined") {
+        window.localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
         window.dispatchEvent(new Event("artifactory-auth-expired"));
       }
     }
