@@ -48,6 +48,11 @@ REFRESH_TOKEN=$(echo "$TOKENS" | jq -r '.refresh_token')
 NEW_ACCESS=$(curl -s -X POST "$BASE_URL/auth/refresh" \
   -H "Content-Type: application/json" \
   -d "{\"refresh_token\":\"$REFRESH_TOKEN\"}" | jq -r '.access_token')
+
+# Logout (revoke refresh token)
+curl -X POST "$BASE_URL/auth/logout" \
+  -H "Content-Type: application/json" \
+  -d "{\"refresh_token\":\"$REFRESH_TOKEN\"}"
 ```
 
 ## Endpoint Groups
@@ -56,6 +61,7 @@ NEW_ACCESS=$(curl -s -X POST "$BASE_URL/auth/refresh" \
 - `POST /auth/register`
 - `POST /auth/login`
 - `POST /auth/refresh`
+- `POST /auth/logout`
 - `GET /auth/me`
 
 ### Kits
@@ -93,6 +99,14 @@ NEW_ACCESS=$(curl -s -X POST "$BASE_URL/auth/refresh" \
 - `GET /health/ready`
 - `GET /metrics`
 
+## Token Lifecycle
+
+1. **Login** — `POST /auth/login` returns an `access_token` (short-lived) and `refresh_token` (long-lived). Each token carries a unique `jti` (JWT ID) claim used for revocation tracking.
+2. **Authenticated requests** — Send `Authorization: Bearer <access_token>`. If the access token expires, the server returns 401.
+3. **Silent refresh** — On 401, the frontend automatically calls `POST /auth/refresh` with the stored refresh token to obtain a new access token, then retries the original request. Concurrent 401s share a single refresh call via a lock.
+4. **Logout** — `POST /auth/logout` inserts the refresh token's `jti` into the revocation denylist. Subsequent refresh attempts with that token are rejected.
+5. **Multi-device** — Each login produces independent tokens. Logging out on one device does not affect others.
+
 ## Common Query Conventions
 - Pagination:
   - `skip`: offset
@@ -116,6 +130,10 @@ The API uses structured JSON errors, for example:
 ```
 
 Rate limit responses use HTTP `429` and include `Retry-After`.
+
+On 401, the frontend automatically attempts a silent token refresh before
+showing a login prompt. Only if the refresh fails (revoked token, expired
+refresh token, or network error) is the user redirected to login.
 
 ## Auth Enforcement Controls
 Environment toggles:
