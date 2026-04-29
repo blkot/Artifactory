@@ -1536,6 +1536,9 @@ export default function App() {
       const result = await api.login(username, password);
       setAuthToken(result.access_token);
       setToken(result.access_token);
+      if (result.refresh_token) {
+        window.localStorage.setItem("artifactory_refresh_token", result.refresh_token);
+      }
       return true;
     } catch (err) {
       setError(toUserMessage(err));
@@ -1543,7 +1546,16 @@ export default function App() {
     }
   }
 
-  function handleLogout() {
+  async function handleLogout() {
+    try {
+      const refreshToken = window.localStorage.getItem("artifactory_refresh_token");
+      if (refreshToken) {
+        await api.logout(refreshToken);
+      }
+    } catch (_) {
+      // Proceed even if logout API fails
+    }
+    window.localStorage.removeItem("artifactory_refresh_token");
     setAuthToken(null);
     setToken(null);
     setError("");

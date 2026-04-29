@@ -141,4 +141,11 @@ export const api = {
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
     });
   },
+  logout: (refreshToken) => {
+    if (!refreshToken) return Promise.resolve();
+    return request("/auth/logout", {
+      method: "POST",
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+  },
 };
