@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.security import decode_token
 from app.db import get_db
+from app.models.revoked_token import RevokedToken
 from app.models.user import User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
@@ -17,6 +18,13 @@ def get_current_user(db: Session = Depends(get_db), token: str = Depends(oauth2_
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
+        )
+
+    jti = payload.get("jti")
+    if jti and db.query(RevokedToken).filter(RevokedToken.token_jti == jti).first():
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has been revoked",
         )
 
     user = db.query(User).filter(User.username == payload["sub"]).first()
@@ -35,6 +43,12 @@ def get_current_user_optional(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
+        )
+    jti = payload.get("jti")
+    if jti and db.query(RevokedToken).filter(RevokedToken.token_jti == jti).first():
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has been revoked",
         )
     user = db.query(User).filter(User.username == payload["sub"]).first()
     if not user:
