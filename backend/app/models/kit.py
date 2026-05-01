@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import Column, Date, DateTime, Enum, Index, Integer, Numeric, String
+from sqlalchemy import Column, Date, DateTime, Enum, ForeignKey, Index, Integer, Numeric, String
 from sqlalchemy.orm import relationship
 
 from app.db import Base
@@ -28,10 +28,11 @@ class Kit(Base):
     purchase_price = Column(Numeric(10, 2), nullable=True)
     purchase_shop = Column(String(200), nullable=True)
     build_status = Column(Enum(BuildStatus), nullable=False, default=BuildStatus.NEW)
+    thumbnail_asset_id = Column(Integer, ForeignKey("assets.id", use_alter=True), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
-    assets = relationship("Asset", back_populates="kit", cascade="all, delete-orphan")
+    assets = relationship("Asset", back_populates="kit", cascade="all, delete-orphan", foreign_keys="[Asset.kit_id]")
     links = relationship("Link", back_populates="kit", cascade="all, delete-orphan")
     tags = relationship("Tag", secondary="kit_tags", back_populates="kits")
     build_logs = relationship("BuildLog", back_populates="kit", cascade="all, delete-orphan")

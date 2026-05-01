@@ -22,4 +22,4 @@ class Asset(Base):
     is_external_reference = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
-    kit = relationship("Kit", back_populates="assets")
+    kit = relationship("Kit", back_populates="assets", foreign_keys=[kit_id])

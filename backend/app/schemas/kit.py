@@ -19,6 +19,7 @@ class KitBase(BaseModel):
     purchase_shop: str | None = None
     build_status: BuildStatus = BuildStatus.NEW
     tag_ids: list[int] = Field(default_factory=list)
+    thumbnail_asset_id: int | None = None
 
     @field_validator("name", "series", "brand", "scale", mode="before")
     @classmethod
@@ -77,6 +78,7 @@ class KitUpdate(BaseModel):
     purchase_shop: str | None = None
     build_status: BuildStatus | None = None
     tag_ids: list[int] | None = None
+    thumbnail_asset_id: int | None = None
 
     @field_validator("name", "series", "brand", "scale", mode="before")
     @classmethod
@@ -134,6 +136,7 @@ class KitRead(BaseModel):
     created_at: datetime
     updated_at: datetime
     tags: list[TagRead] = Field(default_factory=list)
+    thumbnail_asset_id: int | None = None
 
 
 class KitListResponse(BaseModel):
