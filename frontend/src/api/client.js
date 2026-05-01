@@ -218,4 +218,14 @@ export const api = {
       body: JSON.stringify({ refresh_token: refreshToken }),
     });
   },
+  getFilterValues: (field) => request(`/filters/${field}`),
+  createFilterValue: (field, value) =>
+    request(`/filters/${field}`, {
+      method: "POST",
+      body: JSON.stringify({ value }),
+    }),
+  deleteFilterValue: (field, value) =>
+    request(`/filters/${field}/${encodeURIComponent(value)}`, {
+      method: "DELETE",
+    }),
 };

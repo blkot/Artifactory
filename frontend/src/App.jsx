@@ -1256,6 +1256,12 @@ function FilterManagementPage({
         setNewTagColor("#d9822b");
         await loadData();
       } else {
+        // Call server API to persist the filter value
+        try {
+          await api.createFilterValue(field, value);
+        } catch (_) {
+          // Ignore API errors — localStorage fallback below
+        }
         onCreateCustomFacetValue(field, value);
       }
       setNewValue("");
