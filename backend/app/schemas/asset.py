@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, computed_field
 
 from app.models.enums import AssetType
 
@@ -19,6 +19,13 @@ class AssetRead(BaseModel):
     description: str | None = None
     is_external_reference: bool
     created_at: datetime
+
+    @computed_field
+    @property
+    def thumbnail_url(self) -> str | None:
+        if self.thumbnail_path:
+            return f"/api/v1/assets/{self.id}/thumbnail"
+        return None
 
 
 class AssetListResponse(BaseModel):

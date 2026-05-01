@@ -100,6 +100,27 @@ def get_asset_file(
     return FileResponse(path=path)
 
 
+@router.get(
+    "/{asset_id}/thumbnail",
+    summary="Download thumbnail",
+    description="Download or stream the thumbnail file if available.",
+    responses={401: {"description": "Authentication required"}, 404: {"description": "Asset or thumbnail not found"}},
+)
+def get_asset_thumbnail(
+    asset_id: int,
+    db: Session = Depends(get_db),
+    _auth=Depends(require_read_access),
+):
+    asset = get_asset(db, asset_id)
+    if not asset or not asset.thumbnail_path:
+        raise AssetNotFoundException(asset_id)
+
+    path = Path(asset.thumbnail_path)
+    if not path.exists():
+        raise AssetNotFoundException(asset_id)
+    return FileResponse(path=path)
+
+
 @router.delete(
     "/{asset_id}",
     status_code=status.HTTP_204_NO_CONTENT,
