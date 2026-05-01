@@ -63,3 +63,4 @@ frontend/.vite/
 # Backend
 backend/.venv/
 backend/.pytest_cache/
+backend/assets/
