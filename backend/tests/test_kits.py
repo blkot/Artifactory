@@ -220,3 +220,61 @@ def test_kits_search_filters_are_case_insensitive_for_scale_brand_status_and_gra
     payload = response.json()
     assert payload["total"] == 1
     assert payload["items"][0]["name"] == "Case Sensitivity Kit"
+
+
+def test_create_kit_with_thumbnail_asset_id(client, auth_headers) -> None:
+    """Creating a kit accepts thumbnail_asset_id."""
+    payload = {
+        "name": "Thumb Test",
+        "grade": "HG",
+        "series": "Test Series",
+        "brand": "Bandai",
+        "scale": "1/144",
+        "thumbnail_asset_id": None,
+    }
+    response = client.post("/api/v1/kits", json=payload, headers=auth_headers)
+    assert response.status_code == 201
+    data = response.json()
+    assert data["thumbnail_asset_id"] is None
+
+
+def test_update_kit_thumbnail_asset_id(client, auth_headers) -> None:
+    """Updating a kit with thumbnail_asset_id persists the value."""
+    create_resp = client.post("/api/v1/kits", json={
+        "name": "Thumb Update Test",
+        "grade": "MG",
+        "series": "Test Series",
+        "brand": "Bandai",
+        "scale": "1/100",
+    }, headers=auth_headers)
+    kit_id = create_resp.json()["id"]
+
+    update_resp = client.put(f"/api/v1/kits/{kit_id}", json={
+        "thumbnail_asset_id": 999,
+    }, headers=auth_headers)
+    assert update_resp.status_code == 200
+    assert update_resp.json()["thumbnail_asset_id"] == 999
+
+    update_resp2 = client.put(f"/api/v1/kits/{kit_id}", json={
+        "thumbnail_asset_id": None,
+    }, headers=auth_headers)
+    assert update_resp2.status_code == 200
+    assert update_resp2.json()["thumbnail_asset_id"] is None
+
+
+def test_kit_read_includes_thumbnail_asset_id(client, auth_headers) -> None:
+    """Kit read responses include the thumbnail_asset_id field."""
+    create_resp = client.post("/api/v1/kits", json={
+        "name": "Thumb Read Test",
+        "grade": "RG",
+        "series": "Test Series",
+        "brand": "Bandai",
+        "scale": "1/144",
+    }, headers=auth_headers)
+    kit_id = create_resp.json()["id"]
+
+    resp = client.get(f"/api/v1/kits/{kit_id}", headers=auth_headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "thumbnail_asset_id" in data
+    assert data["thumbnail_asset_id"] is None
