@@ -579,7 +579,7 @@ function KitWorkspacePage({
         const [kitRes, assetRes, linkRes, timelineRes] = await Promise.all([
           api.getKit(Number(kitId)),
           api.getAssets({ kitId: Number(kitId), skip: 0, limit: 50 }),
-          api.getLinks(),
+          api.getLinks(Number(kitId)),
           api.getTimeline(Number(kitId)),
         ]);
 
@@ -587,7 +587,7 @@ function KitWorkspacePage({
         setKit(kitRes);
         setEditForm(buildKitEditForm(kitRes));
         setAssets(assetRes.items || []);
-        setLinks((linkRes || []).filter((link) => link.kit_id === Number(kitId)));
+        setLinks(linkRes || []);
         setTimeline(timelineRes || []);
       } catch (err) {
         if (active) setError(toUserMessage(err));
@@ -621,8 +621,8 @@ function KitWorkspacePage({
     if (!kitId) return;
     try {
       await api.createLink({ ...linkForm, kit_id: Number(kitId) });
-      const allLinks = await api.getLinks();
-      setLinks((allLinks || []).filter((link) => link.kit_id === Number(kitId)));
+      const allLinks = await api.getLinks(Number(kitId));
+      setLinks(allLinks || []);
       setLinkForm({ url: "", category: "REVIEW", title: "", notes: "", tag_ids: [] });
     } catch (err) {
       setError(toUserMessage(err));
@@ -633,8 +633,8 @@ function KitWorkspacePage({
     if (!kitId) return;
     try {
       await api.deleteLink(linkId);
-      const allLinks = await api.getLinks();
-      setLinks((allLinks || []).filter((link) => link.kit_id === Number(kitId)));
+      const allLinks = await api.getLinks(Number(kitId));
+      setLinks(allLinks || []);
     } catch (err) {
       setError(toUserMessage(err));
     }

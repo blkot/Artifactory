@@ -4,8 +4,11 @@ from app.models.link import Link
 from app.schemas.link import LinkCreate, LinkUpdate
 
 
-def list_links(db: Session) -> list[Link]:
-    return db.query(Link).order_by(Link.created_at.desc()).all()
+def list_links(db: Session, kit_id: int | None = None) -> list[Link]:
+    query = db.query(Link)
+    if kit_id is not None:
+        query = query.filter(Link.kit_id == kit_id)
+    return query.order_by(Link.created_at.desc()).all()
 
 
 def get_link(db: Session, link_id: int) -> Link | None:

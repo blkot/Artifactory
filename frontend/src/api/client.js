@@ -188,7 +188,14 @@ export const api = {
   createTag: (payload) => request("/tags", { method: "POST", body: JSON.stringify(payload) }),
   updateTag: (id, payload) => request(`/tags/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
   getStats: () => request("/stats"),
-  getLinks: () => request("/links"),
+  getLinks: (kitId = null) => {
+    const params = new URLSearchParams();
+    if (kitId !== null) {
+      params.set("kit_id", String(kitId));
+      return request(`/links?${params.toString()}`);
+    }
+    return request("/links");
+  },
   createLink: (payload) => request("/links", { method: "POST", body: JSON.stringify(payload) }),
   deleteLink: (id) => request(`/links/${id}`, { method: "DELETE" }),
   getTimeline: (kitId) => request(`/kits/${kitId}/timeline`),

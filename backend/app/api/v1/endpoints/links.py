@@ -19,8 +19,12 @@ router = APIRouter(prefix="/links", tags=["links"])
     description="List reference links across kits.",
     responses={401: {"description": "Authentication required"}},
 )
-def get_links(db: Session = Depends(get_db), _auth=Depends(require_read_access)) -> list[LinkRead]:
-    return list_links(db)
+def get_links(
+    kit_id: int | None = None,
+    db: Session = Depends(get_db),
+    _auth=Depends(require_read_access),
+) -> list[LinkRead]:
+    return list_links(db, kit_id=kit_id)
 
 
 @router.post(
