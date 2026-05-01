@@ -1471,7 +1471,7 @@ export default function App() {
           try {
             const payload = await api.getAssets({ kitId: kit.id, skip: 0, limit: 30 });
             const images = (payload.items || []).filter((item) => item.mime_type?.startsWith("image/"));
-            const preferredId = preferredThumbnailAssetMap[String(kit.id)];
+            const preferredId = kit.thumbnail_asset_id || preferredThumbnailAssetMap[String(kit.id)];
             const image = images.find((item) => item.id === preferredId) || images[0] || null;
             return [kit.id, image ? api.assetFileUrl(image.id) : null];
           } catch (_) {
@@ -1600,7 +1600,12 @@ export default function App() {
     await loadKits({ nextPage: kitPage + 1, nextFilters: kitFilters, append: true });
   }
 
-  function setKitThumbnailSource(kitId, assetId) {
+  async function setKitThumbnailSource(kitId, assetId) {
+    try {
+      await api.updateKit(kitId, { thumbnail_asset_id: assetId || null });
+    } catch (_) {
+      // Proceed even if API call fails — localStorage is the fallback.
+    }
     setPreferredThumbnailAssetMap((prev) => {
       const next = { ...prev };
       if (assetId === null || assetId === undefined) {
