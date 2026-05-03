@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { GRADES, BUILD_STATUS, EMPTY_KIT_FORM } from "../constants";
 import AppHeader from "../components/AppHeader";
 import { api } from "../api/client";
@@ -10,23 +10,41 @@ const IMAGE_SECTIONS = [
     { key: "referenceImages", label: "Reference Images", type: "REFERENCE_IMAGE" },
 ];
 
-export default function NewKitPage({ tags, onCreate }) {
+export default function NewKitPage({ tags, facetOptions, onCreate }) {
     const [form, setForm] = useState(EMPTY_KIT_FORM);
     const [showOptional, setShowOptional] = useState(false);
-    const [sectionFiles, setSectionFiles] = useState({
+    const [sectionItems, setSectionItems] = useState({
         boxArt: [],
         manual: [],
         buildPhotos: [],
         referenceImages: [],
     });
     const [submitting, setSubmitting] = useState(false);
+    const [newTagName, setNewTagName] = useState("");
+    const [newTagColor, setNewTagColor] = useState("#d9822b");
+    const nextKeyRef = useRef(1);
 
     function updateField(field, value) {
         setForm((prev) => ({ ...prev, [field]: value }));
     }
 
-    function updateSectionFiles(key, fileList) {
-        setSectionFiles((prev) => ({ ...prev, [key]: Array.from(fileList) }));
+    function addFiles(sectionKey, fileList) {
+        const items = Array.from(fileList).map((file) => ({
+            file,
+            key: nextKeyRef.current++,
+            status: "pending",
+        }));
+        setSectionItems((prev) => ({
+            ...prev,
+            [sectionKey]: [...prev[sectionKey], ...items],
+        }));
+    }
+
+    function removeFile(sectionKey, key) {
+        setSectionItems((prev) => ({
+            ...prev,
+            [sectionKey]: prev[sectionKey].filter((item) => item.key !== key),
+        }));
     }
 
     function toggleTag(id) {
@@ -40,6 +58,7 @@ export default function NewKitPage({ tags, onCreate }) {
 
     async function handleSubmit(event) {
         event.preventDefault();
+        if (submitting) return;
         setSubmitting(true);
         try {
             const kitPayload = {
@@ -49,31 +68,46 @@ export default function NewKitPage({ tags, onCreate }) {
             };
             const createdKit = await api.createKit(kitPayload);
 
-            // Upload all selected images in parallel
-            const uploads = [];
+            // Upload all files sequentially, tracking status per item
             for (const section of IMAGE_SECTIONS) {
-                for (const file of sectionFiles[section.key]) {
-                    const formData = new FormData();
-                    formData.set("kit_id", String(createdKit.id));
-                    formData.set("type", section.type);
-                    formData.set("description", section.label);
-                    formData.set("file", file);
-                    uploads.push(api.uploadAsset(formData));
+                for (const item of sectionItems[section.key].filter((i) => i.status === "pending")) {
+                    setSectionItems((prev) => ({
+                        ...prev,
+                        [section.key]: prev[section.key].map((i) =>
+                            i.key === item.key ? { ...i, status: "uploading" } : i
+                        ),
+                    }));
+                    try {
+                        const formData = new FormData();
+                        formData.set("kit_id", String(createdKit.id));
+                        formData.set("type", section.type);
+                        formData.set("description", section.label);
+                        formData.set("file", item.file);
+                        await api.uploadAsset(formData);
+                        setSectionItems((prev) => ({
+                            ...prev,
+                            [section.key]: prev[section.key].map((i) =>
+                                i.key === item.key ? { ...i, status: "done" } : i
+                            ),
+                        }));
+                    } catch (_) {
+                        setSectionItems((prev) => ({
+                            ...prev,
+                            [section.key]: prev[section.key].map((i) =>
+                                i.key === item.key ? { ...i, status: "error" } : i
+                            ),
+                        }));
+                    }
                 }
             }
-            await Promise.all(uploads);
 
-            // Reset form
-            setForm(EMPTY_KIT_FORM);
-            setSectionFiles({ boxArt: [], manual: [], buildPhotos: [], referenceImages: [] });
-            setShowOptional(false);
             if (onCreate) await onCreate(createdKit);
         } finally {
             setSubmitting(false);
         }
     }
 
-    const totalFiles = Object.values(sectionFiles).reduce((sum, files) => sum + files.length, 0);
+    const totalFiles = Object.values(sectionItems).reduce((sum, items) => sum + items.length, 0);
 
     return (
         <section className="page">
@@ -113,30 +147,48 @@ export default function NewKitPage({ tags, onCreate }) {
                         <input
                             id="kit-series"
                             required
+                            list="series-list"
                             placeholder="e.g. Universal Century"
                             value={form.series}
                             onChange={(e) => updateField("series", e.target.value)}
                         />
+                        <datalist id="series-list">
+                            {(facetOptions?.series || []).map((val) => (
+                                <option key={val} value={val} />
+                            ))}
+                        </datalist>
                     </div>
                     <div className="form-row">
                         <label htmlFor="kit-brand">Brand *</label>
                         <input
                             id="kit-brand"
                             required
+                            list="brand-list"
                             placeholder="e.g. Bandai"
                             value={form.brand}
                             onChange={(e) => updateField("brand", e.target.value)}
                         />
+                        <datalist id="brand-list">
+                            {(facetOptions?.brand || []).map((val) => (
+                                <option key={val} value={val} />
+                            ))}
+                        </datalist>
                     </div>
                     <div className="form-row">
                         <label htmlFor="kit-scale">Scale *</label>
                         <input
                             id="kit-scale"
                             required
+                            list="scale-list"
                             placeholder="e.g. 1/144"
                             value={form.scale}
                             onChange={(e) => updateField("scale", e.target.value)}
                         />
+                        <datalist id="scale-list">
+                            {(facetOptions?.scale || []).map((val) => (
+                                <option key={val} value={val} />
+                            ))}
+                        </datalist>
                     </div>
                 </fieldset>
 
@@ -221,6 +273,35 @@ export default function NewKitPage({ tags, onCreate }) {
                                     ))}
                                     {tags.length === 0 ? <span className="muted">No tags yet</span> : null}
                                 </div>
+                                <div className="tag-create-row">
+                                    <input
+                                        placeholder="New tag name"
+                                        value={newTagName}
+                                        onChange={(e) => setNewTagName(e.target.value)}
+                                    />
+                                    <input
+                                        type="color"
+                                        className="color-input"
+                                        value={newTagColor}
+                                        onChange={(e) => setNewTagColor(e.target.value)}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={async () => {
+                                            const name = newTagName.trim();
+                                            if (!name) return;
+                                            try {
+                                                const created = await api.createTag({ name, color: newTagColor });
+                                                setForm((prev) => ({ ...prev, tag_ids: [...prev.tag_ids, created.id] }));
+                                                setNewTagName("");
+                                                setNewTagColor("#d9822b");
+                                            } catch (_) {}
+                                        }}
+                                        disabled={!newTagName.trim()}
+                                    >
+                                        Create Tag
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     ) : null}
@@ -235,23 +316,30 @@ export default function NewKitPage({ tags, onCreate }) {
                             id={`file-${section.key}`}
                             accept="image/*"
                             multiple
-                            onChange={(e) => updateSectionFiles(section.key, e.target.files)}
+                            onChange={(e) => addFiles(section.key, e.target.files)}
                         />
-                        {sectionFiles[section.key].length > 0 ? (
+                        {sectionItems[section.key].length > 0 ? (
                             <div className="file-preview-grid">
-                                {sectionFiles[section.key].map((file, i) => (
-                                    <div key={i} className="file-preview-item">
-                                        <img
-                                            src={URL.createObjectURL(file)}
-                                            alt={file.name}
-                                        />
-                                        <span>{file.name}</span>
+                                {sectionItems[section.key].map((item) => (
+                                    <div key={item.key} className={`file-preview-item ${item.status === "error" ? "file-upload-error" : ""}`}>
+                                        <img src={URL.createObjectURL(item.file)} alt={item.file.name} />
+                                        <button className="file-preview-remove" type="button"
+                                            onClick={() => removeFile(section.key, item.key)}
+                                            disabled={item.status === "uploading"}
+                                        >×</button>
+                                        <span className="file-preview-name">{item.file.name}</span>
+                                        <span className={`file-upload-status status-${item.status}`}>
+                                            {item.status === "pending" ? "Ready" :
+                                             item.status === "uploading" ? "Uploading..." :
+                                             item.status === "done" ? "✓ Uploaded" :
+                                             "✗ Failed"}
+                                        </span>
                                     </div>
                                 ))}
                             </div>
                         ) : null}
                         <p className="muted file-count">
-                            {sectionFiles[section.key].length} file(s) selected
+                            {sectionItems[section.key].length} file(s) selected
                         </p>
                     </fieldset>
                 ))}

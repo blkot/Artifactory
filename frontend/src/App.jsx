@@ -4,6 +4,7 @@ import {
   Route,
   Routes,
   useLocation,
+  useNavigate,
 } from "react-router-dom";
 
 import { api, loadTokenFromStorage, setAuthToken } from "./api/client";
@@ -21,6 +22,7 @@ import FilterManagementPage from "./pages/FilterManagementPage";
 
 export default function App() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [token, setToken] = useState(() => loadTokenFromStorage());
   const [kits, setKits] = useState([]);
   const [kitPreviewMap, setKitPreviewMap] = useState({});
@@ -170,7 +172,7 @@ export default function App() {
     window.localStorage.setItem(CUSTOM_FACET_STORAGE_KEY, JSON.stringify(customFacetValues));
   }, [customFacetValues]);
 
-  async function handleCreateKit(_createdKit) {
+  async function handleCreateKit(createdKit) {
     try {
       await Promise.all([
         loadKits({ nextPage: 1, nextFilters: kitFilters, append: false }),
@@ -179,6 +181,7 @@ export default function App() {
     } catch (err) {
       setError(toUserMessage(err));
     }
+    navigate(`/kits/${createdKit.id}`);
   }
 
   async function handleLogin(username, password) {
@@ -357,7 +360,7 @@ export default function App() {
               />
             }
           />
-          <Route path="/kits/new" element={<NewKitPage tags={tags} onCreate={handleCreateKit} />} />
+          <Route path="/kits/new" element={<NewKitPage tags={tags} facetOptions={kitFacetOptions} onCreate={handleCreateKit} />} />
           <Route
             path="/kits/:kitId"
             element={
