@@ -1227,3 +1227,113 @@ th {
     overflow: visible;
   }
 }
+
+/* Kit Form (Create + Edit) */
+.kit-form {
+  max-width: 680px;
+  display: grid;
+  gap: 1.2rem;
+}
+
+.form-section {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 1.1rem;
+  background: var(--surface-strong);
+}
+
+.form-section legend {
+  font-weight: 700;
+  font-size: 1rem;
+  padding: 0;
+  margin-bottom: 0.7rem;
+}
+
+.section-toggle {
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.section-toggle:hover {
+  background: none;
+  color: var(--accent);
+}
+
+.section-toggle-icon {
+  display: inline-block;
+  width: 1em;
+  text-align: center;
+}
+
+.optional-fields {
+  display: grid;
+  gap: 0.8rem;
+  margin-top: 0.5rem;
+}
+
+.form-row {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.form-row label {
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.form-row input,
+.form-row select {
+  width: 100%;
+}
+
+.file-count {
+  margin-top: 0.5rem;
+  font-size: 0.82rem;
+}
+
+.file-preview-grid {
+  margin-top: 0.6rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 0.5rem;
+}
+
+.file-preview-item {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: #fff;
+}
+
+.file-preview-item img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  display: block;
+}
+
+.file-preview-item span {
+  display: block;
+  padding: 0.3rem 0.4rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.form-submit {
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  width: 100%;
+}

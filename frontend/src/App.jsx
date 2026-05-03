@@ -170,23 +170,8 @@ export default function App() {
     window.localStorage.setItem(CUSTOM_FACET_STORAGE_KEY, JSON.stringify(customFacetValues));
   }, [customFacetValues]);
 
-  async function handleCreateKit(payload) {
-    const { imageFiles = [], imageAssetType = "BOX_ART", ...kitPayload } = payload;
+  async function handleCreateKit(_createdKit) {
     try {
-      const createdKit = await api.createKit(kitPayload);
-      if (imageFiles.length > 0) {
-        await Promise.all(
-          imageFiles.map(async (file) => {
-            const formData = new FormData();
-            formData.set("kit_id", String(createdKit.id));
-            formData.set("type", imageAssetType);
-            formData.set("description", "Uploaded during kit creation");
-            formData.set("is_external_reference", "false");
-            formData.set("file", file);
-            await api.uploadAsset(formData);
-          })
-        );
-      }
       await Promise.all([
         loadKits({ nextPage: 1, nextFilters: kitFilters, append: false }),
         loadReferenceData(),
