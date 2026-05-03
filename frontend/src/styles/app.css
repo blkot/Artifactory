@@ -1329,13 +1329,28 @@ th {
   place-items: center;
   max-height: calc(100vh - 140px);
   padding: 1rem;
+  overflow: hidden;
+  position: relative;
 }
 
 .image-viewer-main img {
   max-width: 100%;
   max-height: 100%;
-  object-fit: contain;
   border-radius: 8px;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.image-viewer-zoom-badge {
+  position: absolute;
+  bottom: 0.5rem;
+  right: 0.5rem;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-family: "IBM Plex Mono", monospace;
 }
 
 .image-viewer-toolbar {
