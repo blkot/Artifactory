@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv run --extra dev pytest *)",
+      "Bash(./scripts/release_check.sh)",
+      "Bash(npm run build)",
+      "Bash(uv run alembic *)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
+    ]
+  }
+}
