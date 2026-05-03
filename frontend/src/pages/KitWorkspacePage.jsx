@@ -505,17 +505,21 @@ export default function KitWorkspacePage({
 
                 {/* Add files */}
                 <div style={{ marginTop: "0.6rem" }}>
-                  <input
-                    type="file"
-                    accept={section.image ? "image/*" : undefined}
-                    multiple
-                    onChange={(e) => {
-                      setPendingFiles((prev) => ({
-                        ...prev,
-                        [section.type]: Array.from(e.target.files || []),
-                      }));
-                    }}
-                  />
+                  <label className="file-input-btn">
+                    Add files...
+                    <input
+                      type="file"
+                      hidden
+                      accept={section.image ? "image/*" : undefined}
+                      multiple
+                      onChange={(e) => {
+                        setPendingFiles((prev) => ({
+                          ...prev,
+                          [section.type]: Array.from(e.target.files || []),
+                        }));
+                      }}
+                    />
+                  </label>
                 </div>
               </fieldset>
             );

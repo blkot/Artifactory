@@ -311,13 +311,16 @@ export default function NewKitPage({ tags, facetOptions, onCreate }) {
                 {IMAGE_SECTIONS.map((section) => (
                     <fieldset key={section.key} className="form-section">
                         <legend>{section.label}</legend>
-                        <input
-                            type="file"
-                            id={`file-${section.key}`}
-                            accept="image/*"
-                            multiple
-                            onChange={(e) => addFiles(section.key, e.target.files)}
-                        />
+                        <label className="file-input-btn">
+                            Select files...
+                            <input
+                                type="file"
+                                hidden
+                                accept="image/*"
+                                multiple
+                                onChange={(e) => addFiles(section.key, e.target.files)}
+                            />
+                        </label>
                         {sectionItems[section.key].length > 0 ? (
                             <div className="file-preview-grid">
                                 {sectionItems[section.key].map((item) => (

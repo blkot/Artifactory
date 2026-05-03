@@ -297,12 +297,21 @@ select {
   background: #fff;
 }
 
-input[type="file"] {
-  font-size: 0;
+.file-input-btn {
+  display: inline-block;
+  padding: 0.45rem 0.8rem;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.6);
+  font-size: 0.85rem;
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
 }
 
-input[type="file"]::file-selector-button {
-  font-size: 0.95rem;
+.file-input-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .color-input {
