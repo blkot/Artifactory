@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
 
 const MIN_ZOOM = 0.5;
@@ -11,25 +11,35 @@ export default function ImageViewer({ images, currentIndex, coverId, onClose, on
     const [dragging, setDragging] = useState(false);
     const dragStart = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
     const imgRef = useRef(null);
+    const containerRef = useRef(null);
 
     if (!images || images.length === 0) return null;
     const current = images[currentIndex];
     if (!current) return null;
 
-    // Reset transform when image changes
     useEffect(() => {
         setZoom(1);
         setPan({ x: 0, y: 0 });
     }, [currentIndex]);
 
+    function getPanLimit(z) {
+        if (!imgRef.current || !containerRef.current) return { x: 0, y: 0 };
+        const imgRect = imgRef.current.getBoundingClientRect();
+        const containerRect = containerRef.current.getBoundingClientRect();
+        // The displayed image size after CSS constrains it
+        const imgW = imgRect.width / zoom * z;  // projected size at zoom z
+        const imgH = imgRect.height / zoom * z;
+        const limitX = Math.max(0, (imgW - containerRect.width) / 2);
+        const limitY = Math.max(0, (imgH - containerRect.height) / 2);
+        return { x: limitX, y: limitY };
+    }
+
     function clampPan(z, px, py) {
-        // When zoom <= 1, no panning
         if (z <= 1) return { x: 0, y: 0 };
-        // Limit pan so image edges don't pull too far into view
-        const maxPan = (z - 1) * 200;
+        const limit = getPanLimit(z);
         return {
-            x: Math.max(-maxPan, Math.min(maxPan, px)),
-            y: Math.max(-maxPan, Math.min(maxPan, py)),
+            x: Math.max(-limit.x, Math.min(limit.x, px)),
+            y: Math.max(-limit.y, Math.min(limit.y, py)),
         };
     }
 
@@ -38,17 +48,28 @@ export default function ImageViewer({ images, currentIndex, coverId, onClose, on
         const direction = e.deltaY < 0 ? 1 : -1;
         const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom + direction * ZOOM_STEP));
 
-        // Zoom toward cursor position
-        if (imgRef.current) {
-            const rect = imgRef.current.getBoundingClientRect();
-            const cx = e.clientX - rect.left - rect.width / 2;
-            const cy = e.clientY - rect.top - rect.height / 2;
+        if (imgRef.current && containerRef.current) {
+            const imgRect = imgRef.current.getBoundingClientRect();
+            const containerRect = containerRef.current.getBoundingClientRect();
+
+            // Cursor position relative to the image center, clamped to image bounds
+            const imgCenterX = imgRect.left + imgRect.width / 2;
+            const imgCenterY = imgRect.top + imgRect.height / 2;
+            const cx = e.clientX - imgCenterX;
+            const cy = e.clientY - imgCenterY;
+
             const scale = newZoom / zoom;
-            const newPan = clampPan(newZoom,
-                pan.x - cx * (scale - 1),
-                pan.y - cy * (scale - 1)
-            );
-            setPan(newPan);
+
+            if (newZoom <= 1) {
+                setPan({ x: 0, y: 0 });
+            } else {
+                const limit = getPanLimit(newZoom);
+                const newPan = clampPan(newZoom,
+                    (pan.x - cx) * scale,
+                    (pan.y - cy) * scale
+                );
+                setPan(newPan);
+            }
         }
         setZoom(newZoom);
     }
@@ -72,19 +93,6 @@ export default function ImageViewer({ images, currentIndex, coverId, onClose, on
 
     function handleMouseUp() {
         setDragging(false);
-    }
-
-    function handleImageClick(e) {
-        // Don't toggle zoom if we just finished dragging
-        if (dragging) return;
-        // Toggle between fit and 100%
-        if (zoom > 1.01) {
-            setZoom(1);
-            setPan({ x: 0, y: 0 });
-        } else {
-            setZoom(1);
-            setPan({ x: 0, y: 0 });
-        }
     }
 
     function handleDoubleClick(e) {
@@ -117,9 +125,8 @@ export default function ImageViewer({ images, currentIndex, coverId, onClose, on
     useEffect(() => {
         document.addEventListener("keydown", handleKeyDown);
         return () => document.removeEventListener("keydown", handleKeyDown);
-    }, [currentIndex, images.length, zoom, pan, dragging]);
+    }, [currentIndex, images.length, zoom]);
 
-    // Global mouseup to catch drag release outside the image
     useEffect(() => {
         if (!dragging) return;
         const onUp = () => setDragging(false);
@@ -132,6 +139,7 @@ export default function ImageViewer({ images, currentIndex, coverId, onClose, on
     }
 
     const cursor = zoom > 1 ? (dragging ? "grabbing" : "grab") : "default";
+    const hasTransform = zoom > 1.005;
 
     return (
         <div className="image-viewer-backdrop" onClick={handleBackdropClick}>
@@ -142,6 +150,7 @@ export default function ImageViewer({ images, currentIndex, coverId, onClose, on
             </button>
 
             <div
+                ref={containerRef}
                 className="image-viewer-main"
                 onWheel={handleWheel}
                 onMouseDown={handleMouseDown}
@@ -152,16 +161,16 @@ export default function ImageViewer({ images, currentIndex, coverId, onClose, on
                     ref={imgRef}
                     src={api.assetFileUrl(current.id)}
                     alt={current.original_filename}
-                    onClick={handleImageClick}
                     onDoubleClick={handleDoubleClick}
                     style={{
-                        transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+                        transform: hasTransform
+                            ? `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`
+                            : "none",
                         cursor,
-                        transition: dragging ? "none" : "transform 0.15s ease",
                     }}
                     draggable={false}
                 />
-                {zoom > 1.01 ? (
+                {hasTransform ? (
                     <span className="image-viewer-zoom-badge">
                         {Math.round(zoom * 100)}%
                     </span>
