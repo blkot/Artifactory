@@ -4,6 +4,7 @@ import { api } from "../api/client";
 import { GRADES, BUILD_STATUS, LINK_CATEGORIES } from "../constants";
 import { buildKitEditForm, toUserMessage } from "../utils";
 import AppHeader from "../components/AppHeader";
+import ImageViewer from "../components/ImageViewer";
 
 export default function KitWorkspacePage({
   token,
@@ -33,20 +34,32 @@ export default function KitWorkspacePage({
   const [timelineForm, setTimelineForm] = useState({ status: "IN_PROGRESS", notes: "" });
   const [pendingFiles, setPendingFiles] = useState({});
   const [editForm, setEditForm] = useState(null);
-  const [selectedCoverCandidateId, setSelectedCoverCandidateId] = useState(null);
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerIndex, setViewerIndex] = useState(0);
   const [tagPickerOpen, setTagPickerOpen] = useState(false);
   const [selectedExistingTagId, setSelectedExistingTagId] = useState("");
   const [newTagName, setNewTagName] = useState("");
   const [newTagColor, setNewTagColor] = useState("#d9822b");
-  const thumbnailAssetId = thumbnailAssetMap?.[String(kitId)] || null;
   const imageAssets = useMemo(
     () => assets.filter((asset) => asset.mime_type?.startsWith("image/")),
     [assets]
   );
   const coverAsset = useMemo(
-    () => imageAssets.find((asset) => asset.id === thumbnailAssetId) || imageAssets[0] || null,
-    [imageAssets, thumbnailAssetId]
+    () => {
+      const coverId = thumbnailAssetMap?.[String(kitId)] || null;
+      return imageAssets.find((asset) => asset.id === coverId) || imageAssets[0] || null;
+    },
+    [imageAssets, thumbnailAssetMap, kitId]
   );
+  const imageAssetsByType = useMemo(() => {
+    const groups = {};
+    for (const asset of imageAssets) {
+      const label = asset.type.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+      if (!groups[asset.type]) groups[asset.type] = { label, assets: [] };
+      groups[asset.type].assets.push(asset);
+    }
+    return Object.values(groups);
+  }, [imageAssets]);
 
   const ASSET_SECTIONS = [
     { type: "BOX_ART", label: "Box Art", image: true },
@@ -86,15 +99,6 @@ export default function KitWorkspacePage({
       active = false;
     };
   }, [kitId, token]);
-
-  useEffect(() => {
-    if (imageAssets.length === 0) {
-      setSelectedCoverCandidateId(null);
-      return;
-    }
-    const preferred = imageAssets.find((asset) => asset.id === thumbnailAssetId);
-    setSelectedCoverCandidateId((prev) => prev || preferred?.id || imageAssets[0].id);
-  }, [imageAssets, thumbnailAssetId]);
 
   function toggleLinkTag(id) {
     setLinkForm((prev) => ({
@@ -188,11 +192,6 @@ export default function KitWorkspacePage({
     } catch (err) {
       setError(toUserMessage(err));
     }
-  }
-
-  function applySelectedCover() {
-    if (!kitId || !selectedCoverCandidateId) return;
-    onSetThumbnailAsset(Number(kitId), selectedCoverCandidateId);
   }
 
   async function updateKitTagIds(nextTagIds) {
@@ -368,61 +367,54 @@ export default function KitWorkspacePage({
             ) : null}
           </div>
           <div className="span-2">
-            <div className="cover-panel">
-              <div className="cover-panel-media">
-                {coverAsset ? (
-                  <img src={api.assetFileUrl(coverAsset.id)} alt={coverAsset.original_filename} />
-                ) : (
-                  <div className="kit-card-placeholder">
-                    <span>{kit.grade}</span>
-                  </div>
-                )}
-              </div>
-              <div className="cover-panel-info">
-                <h3>Cover Image</h3>
-                <p className="muted">
-                  {coverAsset
-                    ? `Current source: ${coverAsset.original_filename}`
-                    : "No image selected. Placeholder is currently used."}
-                </p>
-                <div className="actions-row">
-                  <button type="button" onClick={applySelectedCover} disabled={!selectedCoverCandidateId}>
-                    Set Selected as Cover
-                  </button>
-                  <button type="button" onClick={() => onSetThumbnailAsset(Number(kitId), null)}>
-                    Use Placeholder
-                  </button>
+            <h3>Cover Image</h3>
+            <div className="cover-panel-media" style={{ marginTop: "0.5rem" }}>
+              {coverAsset ? (
+                <img src={api.assetFileUrl(coverAsset.id)} alt={coverAsset.original_filename} onClick={() => {
+                  const idx = imageAssets.findIndex(a => a.id === coverAsset.id);
+                  setViewerOpen(true);
+                  setViewerIndex(idx >= 0 ? idx : 0);
+                }} style={{ cursor: "pointer" }} />
+              ) : (
+                <div className="kit-card-placeholder">
+                  <span>{kit.grade}</span>
                 </div>
-              </div>
+              )}
             </div>
+            <p className="muted" style={{ marginTop: "0.3rem" }}>
+              {coverAsset ? "Click to open viewer. Use the viewer to change cover." : "No cover set. Open an image in the viewer to set as cover."}
+            </p>
           </div>
           <div className="span-2">
-            <div className="panel-head">
-              <h3>Image Gallery</h3>
-              <p className="muted">Select one image, then use the cover action above.</p>
-            </div>
-            <div className="kit-gallery-grid">
-              {imageAssets.map((asset) => (
-                <article
-                  key={asset.id}
-                  className={[
-                    "kit-gallery-card",
-                    thumbnailAssetId === asset.id ? "is-cover" : "",
-                    selectedCoverCandidateId === asset.id ? "active" : "",
-                  ].join(" ").trim()}
-                  onClick={() => setSelectedCoverCandidateId(asset.id)}
-                >
-                  <img src={api.assetFileUrl(asset.id)} alt={asset.original_filename} />
-                  <div className="kit-gallery-meta">
-                    <p>{asset.original_filename}</p>
-                    {thumbnailAssetId === asset.id ? <span className="gallery-badge">Current Cover</span> : null}
-                  </div>
-                </article>
-              ))}
-              {imageAssets.length === 0 ? (
-                <div className="kit-card-empty muted">No image assets yet. Upload in the Assets tab.</div>
-              ) : null}
-            </div>
+            <h3>Image Gallery</h3>
+            {imageAssetsByType.map((group) => (
+              <div key={group.label} style={{ marginTop: "0.8rem" }}>
+                <h4 style={{ margin: "0 0 0.5rem" }}>{group.label}</h4>
+                <div className="kit-gallery-grid">
+                  {group.assets.map((asset) => (
+                    <article
+                      key={asset.id}
+                      className={`kit-gallery-card ${coverAsset?.id === asset.id ? "is-cover" : ""}`}
+                      onClick={() => {
+                        const allImages = imageAssets;
+                        const idx = allImages.findIndex(a => a.id === asset.id);
+                        setViewerOpen(true);
+                        setViewerIndex(idx >= 0 ? idx : 0);
+                      }}
+                    >
+                      <img src={api.assetFileUrl(asset.id)} alt={asset.original_filename} />
+                      <div className="kit-gallery-meta">
+                        <p>{asset.original_filename}</p>
+                        {coverAsset?.id === asset.id ? <span className="gallery-badge">Cover</span> : null}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            ))}
+            {imageAssets.length === 0 ? (
+              <div className="kit-card-empty muted" style={{ marginTop: "0.7rem" }}>No image assets yet. Upload in the Assets tab.</div>
+            ) : null}
           </div>
         </article>
       ) : null}
@@ -630,6 +622,18 @@ export default function KitWorkspacePage({
             </table>
           </div>
         </article>
+      ) : null}
+      {viewerOpen ? (
+        <ImageViewer
+          images={imageAssets}
+          currentIndex={viewerIndex}
+          coverId={coverAsset?.id}
+          onClose={() => setViewerOpen(false)}
+          onNavigate={setViewerIndex}
+          onSetCover={(assetId) => {
+            if (onSetThumbnailAsset) onSetThumbnailAsset(Number(kitId), assetId);
+          }}
+        />
       ) : null}
     </section>
   );
