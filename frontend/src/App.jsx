@@ -10,7 +10,7 @@ import { api, loadTokenFromStorage, setAuthToken } from "./api/client";
 
 import { PAGE_SIZE, THUMBNAIL_PREF_STORAGE_KEY, CUSTOM_FACET_STORAGE_KEY, EMPTY_KIT_FILTERS } from "./constants";
 import { caseFold, buildCaseInsensitiveFacetOptions, toUserMessage } from "./utils";
-import Sidebar from "./components/Sidebar";
+import TopNav from "./components/Sidebar";
 import DashboardPage from "./pages/DashboardPage";
 import KitsPage from "./pages/KitsPage";
 import LoginPage from "./pages/LoginPage";
@@ -319,7 +319,7 @@ export default function App() {
 
   return (
     <main className="app-shell">
-      <Sidebar token={token} onLogout={handleLogout} />
+      <TopNav token={token} onLogout={handleLogout} />
       <section className="content-shell">
         <Routes>
           <Route path="/dashboard" element={<DashboardPage kits={kits} kitPreviewMap={kitPreviewMap} stats={stats} />} />

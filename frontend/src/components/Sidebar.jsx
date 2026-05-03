@@ -1,48 +1,43 @@
 import { NavLink } from "react-router-dom";
 
-export default function Sidebar({ token, onLogout }) {
-  const items = [
-    { to: "/dashboard", label: "Dashboard", short: "DB" },
-    { to: "/kits", label: "Kits", short: "KT" },
-    ...(token ? [{ to: "/settings/filters", label: "Filters", short: "FL" }] : []),
-    { to: "/settings", label: "Settings", short: "ST" },
-  ];
-
+export default function TopNav({ token, onLogout }) {
   return (
-    <aside className="sidebar">
-      <div className="brand">
-        <p className="brand-full">Artifactory</p>
-        <span className="brand-sub">Model Collection OS</span>
-        <p className="brand-mini" aria-hidden="true">
-          AF
-        </p>
-      </div>
-      <div className="session-card">
-        <div className="session-pill" aria-hidden="true">
-          <span className={token ? "status-dot online" : "status-dot"} />
-          <span className="session-pill-text">{token ? "IN" : "OUT"}</span>
-        </div>
-        <p className="session-text">{token ? "Signed in" : "Guest mode"}</p>
+    <header className="topnav">
+      <NavLink to="/dashboard" className="topnav-brand">
+        Artifactory
+        <span className="topnav-brand-sub">Model Collection OS</span>
+      </NavLink>
+
+      <nav className="topnav-links">
+        <NavLink to="/dashboard" className={({ isActive }) => isActive ? "topnav-link active" : "topnav-link"}>
+          Dashboard
+        </NavLink>
+        <NavLink to="/kits" className={({ isActive }) => isActive ? "topnav-link active" : "topnav-link"}>
+          Kits
+        </NavLink>
         {token ? (
-          <button className="session-action" type="button" onClick={onLogout}>
+          <NavLink to="/settings/filters" className={({ isActive }) => isActive ? "topnav-link active" : "topnav-link"}>
+            Filters
+          </NavLink>
+        ) : null}
+        <NavLink to="/settings" className={({ isActive }) => isActive ? "topnav-link active" : "topnav-link"}>
+          Settings
+        </NavLink>
+      </nav>
+
+      <div className="topnav-session">
+        <span className={token ? "status-dot online" : "status-dot"} />
+        <span className="topnav-session-text">{token ? "Signed in" : "Guest"}</span>
+        {token ? (
+          <button className="topnav-action" type="button" onClick={onLogout}>
             Log Out
           </button>
         ) : (
-          <NavLink className="ghost-link session-action" to="/login">
+          <NavLink className="topnav-action" to="/login">
             Log In
           </NavLink>
         )}
       </div>
-      <nav className="nav-list">
-        {items.map((item) => (
-          <NavLink key={item.to} to={item.to} className={({ isActive }) => (isActive ? "nav-item active" : "nav-item")}>
-            <span className="nav-short" aria-hidden="true">
-              {item.short}
-            </span>
-            <span className="nav-label">{item.label}</span>
-          </NavLink>
-        ))}
-      </nav>
-    </aside>
+    </header>
   );
 }
