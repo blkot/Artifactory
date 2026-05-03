@@ -58,7 +58,7 @@ a {
   flex-direction: column;
   gap: 1rem;
   overflow: hidden;
-  transition: width 180ms ease;
+  transition: width 200ms ease;
 }
 
 .sidebar:hover,
@@ -66,38 +66,66 @@ a {
   width: var(--sidebar-expanded-width);
 }
 
+/* ---- Brand card ---- */
 .brand {
   background: var(--surface-strong);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   padding: 1rem;
-  min-height: var(--sidebar-brand-height);
+  height: var(--sidebar-brand-height);
   box-shadow: var(--shadow);
-  display: grid;
-  gap: 0.25rem;
-  justify-items: center;
-  text-align: center;
-  align-content: center;
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
 }
 
-.brand p {
+.brand-full {
   margin: 0;
   font-size: 1.2rem;
   font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0;
+  transition: opacity 150ms ease;
 }
 
-.brand span {
+.brand-sub {
   color: var(--muted);
   font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+.sidebar:hover .brand-full,
+.sidebar:focus-within .brand-full,
+.sidebar:hover .brand-sub,
+.sidebar:focus-within .brand-sub {
+  opacity: 1;
 }
 
 .brand-mini {
   margin: 0;
   font-size: 1.1rem;
   letter-spacing: 0.06em;
-  text-align: center;
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  opacity: 1;
+  transition: opacity 150ms ease;
 }
 
+.sidebar:hover .brand-mini,
+.sidebar:focus-within .brand-mini {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ---- Navigation ---- */
 .nav-list {
   display: grid;
   gap: 0.4rem;
@@ -105,7 +133,7 @@ a {
 
 .nav-item {
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: center;
   gap: 0.6rem;
   text-decoration: none;
@@ -114,6 +142,7 @@ a {
   border-radius: var(--radius-sm);
   color: #394147;
   border: 1px solid transparent;
+  overflow: hidden;
 }
 
 .nav-item:hover {
@@ -126,23 +155,55 @@ a {
   color: var(--accent-ink);
 }
 
+.nav-short {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  height: 2rem;
+  border: 1px solid #d8d0c4;
+  border-radius: 999px;
+  background: #f5efe7;
+  color: #2a3138;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.74rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.nav-item.active .nav-short {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+.nav-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+.sidebar:hover .nav-label,
+.sidebar:focus-within .nav-label {
+  opacity: 1;
+}
+
+/* ---- Session card ---- */
 .session-card {
   background: var(--surface-strong);
   border-radius: var(--radius-md);
   border: 1px solid var(--line);
   padding: 0.9rem;
-  min-height: var(--sidebar-session-height);
+  height: var(--sidebar-session-height);
   display: grid;
   gap: 0.6rem;
   flex-shrink: 0;
-  justify-items: center;
-  text-align: center;
-  align-content: center;
-}
-
-.session-card p {
-  margin: 0;
-  color: var(--muted);
+  position: relative;
+  overflow: hidden;
+  justify-items: start;
+  text-align: left;
 }
 
 .session-pill {
@@ -154,7 +215,7 @@ a {
   border-radius: 999px;
   padding: 0.22rem 0.46rem;
   background: #f7f2eb;
-  justify-self: center;
+  justify-self: start;
 }
 
 .status-dot {
@@ -172,98 +233,40 @@ a {
   font-size: 0.72rem;
   color: #4b535a;
   font-family: "IBM Plex Mono", monospace;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 150ms ease;
 }
 
-.nav-short {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 2rem;
-  height: 2rem;
-  border: 1px solid #d8d0c4;
-  border-radius: 999px;
-  background: #f5efe7;
-  color: #2a3138;
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 0.74rem;
-  font-weight: 600;
-}
-
-.nav-item.active .nav-short {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-ink);
-}
-
-.nav-label,
-.brand-full,
-.brand-sub,
-.session-text,
-.session-action,
-.session-pill-text {
-  display: none;
-}
-
-.sidebar .brand-mini {
-  display: block;
-}
-
-.sidebar:not(:hover):not(:focus-within) .brand,
-.sidebar:not(:hover):not(:focus-within) .session-card {
-  width: 100%;
-  overflow: hidden;
-}
-
-.sidebar:not(:hover):not(:focus-within) .nav-item {
-  min-height: 2.7rem;
-}
-
-.sidebar:not(:hover):not(:focus-within) .brand-mini {
-  font-size: 0.8rem;
-  letter-spacing: 0.02em;
-}
-
-.sidebar:not(:hover):not(:focus-within) .session-pill {
-  padding: 0.22rem;
-}
-
-.sidebar:hover .nav-label,
-.sidebar:hover .brand-full,
-.sidebar:hover .brand-sub,
-.sidebar:hover .session-text,
-.sidebar:hover .session-action,
 .sidebar:hover .session-pill-text,
-.sidebar:focus-within .nav-label,
-.sidebar:focus-within .brand-full,
-.sidebar:focus-within .brand-sub,
-.sidebar:focus-within .session-text,
-.sidebar:focus-within .session-action,
 .sidebar:focus-within .session-pill-text {
-  display: inline;
+  opacity: 1;
 }
 
-.sidebar:hover .nav-item,
-.sidebar:focus-within .nav-item {
-  justify-content: flex-start;
+.session-text {
+  margin: 0;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0;
+  transition: opacity 150ms ease;
 }
 
-.sidebar:hover .brand,
-.sidebar:focus-within .brand,
-.sidebar:hover .session-card,
-.sidebar:focus-within .session-card {
-  justify-items: start;
-  text-align: left;
-  align-content: start;
+.sidebar:hover .session-text,
+.sidebar:focus-within .session-text {
+  opacity: 1;
 }
 
-.sidebar:hover .session-pill,
-.sidebar:focus-within .session-pill {
-  justify-self: start;
+.session-action {
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 150ms ease;
 }
 
-.sidebar:hover .brand-mini,
-.sidebar:focus-within .brand-mini {
-  display: none;
+.sidebar:hover .session-action,
+.sidebar:focus-within .session-action {
+  opacity: 1;
 }
 
 .content-shell {
@@ -1119,51 +1122,70 @@ th {
   }
 
   .sidebar {
-    width: 100%;
+    width: 100% !important;
     position: sticky;
     top: 0;
     z-index: 4;
     border-right: none;
     border-bottom: 1px solid var(--line);
-    overflow: visible;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 0.6rem 0.8rem;
+    gap: 0.5rem;
+  }
+
+  .sidebar .brand {
+    height: auto;
+    padding: 0.5rem 0.7rem;
+    flex-shrink: 0;
+  }
+
+  .sidebar .brand-mini {
+    position: static;
+    opacity: 0;
+  }
+
+  .sidebar .brand-full,
+  .sidebar .brand-sub {
+    opacity: 1;
+  }
+
+  .sidebar .brand-full {
+    font-size: 1rem;
+  }
+
+  .sidebar .brand-sub {
+    font-size: 0.78rem;
+  }
+
+  .sidebar .session-card {
+    height: auto;
+    padding: 0.5rem 0.7rem;
+    flex-shrink: 0;
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .sidebar .session-text,
+  .sidebar .session-action,
+  .sidebar .session-pill-text {
+    opacity: 1;
   }
 
   .nav-list {
-    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+    flex: 1;
+    min-width: 200px;
   }
 
-  .session-card {
-    margin-top: 0.6rem;
+  .sidebar .nav-label {
+    opacity: 1;
   }
 
   .content-shell {
     --content-shell-padding: 1rem;
     padding: var(--content-shell-padding);
-  }
-
-  .nav-label,
-  .brand-full,
-  .brand-sub,
-  .session-text,
-.session-action,
-.session-pill-text {
-    display: inline;
-  }
-
-  .brand-mini {
-    display: none;
-  }
-
-  .nav-item {
-    justify-content: flex-start;
-  }
-
-  .brand,
-  .session-card {
-    justify-items: start;
-    text-align: left;
-    align-content: start;
-    min-height: auto;
   }
 }
 
