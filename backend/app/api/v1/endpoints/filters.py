@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import require_read_access, require_write_access
 from app.db import get_db
 from app.models.filter_value import FilterValue
+from app.schemas.filter_value import FilterValueCreate, FilterValueRead
 
 router = APIRouter(prefix="/filters", tags=["filters"])
 
@@ -17,7 +18,7 @@ def get_filter_values(
     field: str,
     db: Session = Depends(get_db),
     _auth=Depends(require_read_access),
-) -> list[dict]:
+) -> list[FilterValueRead]:
     if field not in ("brand", "series", "scale"):
         raise HTTPException(status_code=404, detail="Unknown filter field")
     values = (
@@ -26,7 +27,7 @@ def get_filter_values(
         .order_by(FilterValue.value)
         .all()
     )
-    return [{"id": v.id, "value": v.value} for v in values]
+    return [FilterValueRead.model_validate(v) for v in values]
 
 
 @router.post(
@@ -37,13 +38,13 @@ def get_filter_values(
 )
 def create_filter_value(
     field: str,
-    body: dict,
+    payload: FilterValueCreate,
     db: Session = Depends(get_db),
     _auth=Depends(require_write_access),
-) -> dict:
+) -> FilterValueRead:
     if field not in ("brand", "series", "scale"):
         raise HTTPException(status_code=404, detail="Unknown filter field")
-    value = str(body.get("value", "")).strip()
+    value = payload.value.strip()
     if not value:
         raise HTTPException(status_code=400, detail="Value is required")
 
@@ -53,13 +54,13 @@ def create_filter_value(
         .first()
     )
     if existing:
-        return {"id": existing.id, "value": existing.value}
+        return FilterValueRead.model_validate(existing)
 
     fv = FilterValue(field=field, value=value)
     db.add(fv)
     db.commit()
     db.refresh(fv)
-    return {"id": fv.id, "value": fv.value}
+    return FilterValueRead.model_validate(fv)
 
 
 @router.delete(
