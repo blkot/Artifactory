@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
-import { GRADES, BUILD_STATUS, LINK_CATEGORIES, ASSET_TYPES } from "../constants";
+import { GRADES, BUILD_STATUS, LINK_CATEGORIES } from "../constants";
 import { buildKitEditForm, toUserMessage } from "../utils";
 import AppHeader from "../components/AppHeader";
 
@@ -31,7 +31,7 @@ export default function KitWorkspacePage({
     tag_ids: [],
   });
   const [timelineForm, setTimelineForm] = useState({ status: "IN_PROGRESS", notes: "" });
-  const [assetForm, setAssetForm] = useState({ type: "DOCUMENT", description: "", is_external_reference: false, file: null });
+  const [pendingFiles, setPendingFiles] = useState({});
   const [editForm, setEditForm] = useState(null);
   const [selectedCoverCandidateId, setSelectedCoverCandidateId] = useState(null);
   const [tagPickerOpen, setTagPickerOpen] = useState(false);
@@ -47,6 +47,15 @@ export default function KitWorkspacePage({
     () => imageAssets.find((asset) => asset.id === thumbnailAssetId) || imageAssets[0] || null,
     [imageAssets, thumbnailAssetId]
   );
+
+  const ASSET_SECTIONS = [
+    { type: "BOX_ART", label: "Box Art", image: true },
+    { type: "MANUAL", label: "Manual", image: true },
+    { type: "BUILD_PHOTO", label: "Build Photos", image: true },
+    { type: "REFERENCE_IMAGE", label: "Reference Images", image: true },
+    { type: "VIDEO", label: "Videos", image: false },
+    { type: "DOCUMENT", label: "Documents", image: false },
+  ];
 
   useEffect(() => {
     if (!kitId) return;
@@ -126,25 +135,6 @@ export default function KitWorkspacePage({
       const rows = await api.getTimeline(Number(kitId));
       setTimeline(rows || []);
       setTimelineForm((prev) => ({ ...prev, notes: "" }));
-    } catch (err) {
-      setError(toUserMessage(err));
-    }
-  }
-
-  async function submitAsset(event) {
-    event.preventDefault();
-    if (!kitId || !assetForm.file) return;
-    try {
-      const formData = new FormData();
-      formData.set("kit_id", String(Number(kitId)));
-      formData.set("type", assetForm.type);
-      formData.set("description", assetForm.description);
-      formData.set("is_external_reference", String(assetForm.is_external_reference));
-      formData.set("file", assetForm.file);
-      await api.uploadAsset(formData);
-      const rows = await api.getAssets({ kitId: Number(kitId), skip: 0, limit: 50 });
-      setAssets(rows.items || []);
-      setAssetForm((prev) => ({ ...prev, description: "", is_external_reference: false, file: null }));
     } catch (err) {
       setError(toUserMessage(err));
     }
@@ -439,51 +429,137 @@ export default function KitWorkspacePage({
 
       {tab === "assets" ? (
         <article className="panel">
-          <form className="form-grid" onSubmit={submitAsset}>
-            <select value={assetForm.type} onChange={(e) => setAssetForm((prev) => ({ ...prev, type: e.target.value }))}>
-              {ASSET_TYPES.map((type) => (
-                <option key={type} value={type}>{type}</option>
-              ))}
-            </select>
-            <input placeholder="Description" value={assetForm.description} onChange={(e) => setAssetForm((prev) => ({ ...prev, description: e.target.value }))} />
-            <label className="checkbox-row">
-              <input
-                type="checkbox"
-                checked={assetForm.is_external_reference}
-                onChange={(e) => setAssetForm((prev) => ({ ...prev, is_external_reference: e.target.checked }))}
-              />
-              External reference
-            </label>
-            <input type="file" required onChange={(e) => setAssetForm((prev) => ({ ...prev, file: e.target.files?.[0] || null }))} />
-            <button type="submit" className="span-2">Upload Asset</button>
-          </form>
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Preview</th>
-                  <th>Name</th>
-                  <th>Type</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {assets.map((asset) => (
-                  <tr key={asset.id}>
-                    <td>
-                      {asset.mime_type.startsWith("image/") ? <img className="asset-preview" src={api.assetFileUrl(asset.id)} alt={asset.original_filename} /> : <span className="muted">No preview</span>}
-                    </td>
-                    <td>{asset.original_filename}</td>
-                    <td>{asset.type}</td>
-                    <td className="actions-row">
-                      <a href={api.assetFileUrl(asset.id)} target="_blank" rel="noreferrer">Open</a>
-                      <button type="button" className="btn-danger" onClick={() => removeAsset(asset.id)}>Delete</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="panel-head">
+            <h3>Assets</h3>
           </div>
+
+          {ASSET_SECTIONS.map((section) => {
+            const sectionAssets = assets.filter((a) => a.type === section.type);
+            const pendingForSection = pendingFiles[section.type] || [];
+
+            return (
+              <fieldset key={section.type} className="form-section">
+                <legend>
+                  {section.label}
+                  <span className="muted" style={{ marginLeft: "0.5rem", fontSize: "0.85rem" }}>
+                    ({sectionAssets.length})
+                  </span>
+                </legend>
+
+                {/* Existing assets */}
+                {sectionAssets.length > 0 ? (
+                  section.image ? (
+                    <div className="file-preview-grid">
+                      {sectionAssets.map((asset) => (
+                        <div key={asset.id} className="file-preview-item">
+                          <img src={api.assetFileUrl(asset.id)} alt={asset.original_filename} />
+                          <span>{asset.original_filename}</span>
+                          <button
+                            type="button"
+                            className="btn-danger file-preview-delete"
+                            onClick={() => removeAsset(asset.id)}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="table-wrap">
+                      <table>
+                        <tbody>
+                          {sectionAssets.map((asset) => (
+                            <tr key={asset.id}>
+                              <td>
+                                <a href={api.assetFileUrl(asset.id)} target="_blank" rel="noreferrer">
+                                  {asset.original_filename}
+                                </a>
+                              </td>
+                              <td>{asset.description || "-"}</td>
+                              <td>
+                                <button
+                                  type="button"
+                                  className="btn-danger"
+                                  onClick={() => removeAsset(asset.id)}
+                                >
+                                  Delete
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )
+                ) : (
+                  <p className="muted">No {section.label.toLowerCase()} yet.</p>
+                )}
+
+                {/* Pending files preview */}
+                {pendingForSection.length > 0 ? (
+                  <div className="file-preview-grid" style={{ marginTop: "0.5rem" }}>
+                    {pendingForSection.map((file, i) => (
+                      <div key={`pending-${i}`} className="file-preview-item file-preview-pending">
+                        {file.type.startsWith("image/") ? (
+                          <img src={URL.createObjectURL(file)} alt={file.name} />
+                        ) : (
+                          <div className="file-preview-placeholder">{file.name.split(".").pop()}</div>
+                        )}
+                        <span>{file.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+
+                {/* Add files */}
+                <div style={{ marginTop: "0.6rem" }}>
+                  <input
+                    type="file"
+                    accept={section.image ? "image/*" : undefined}
+                    multiple
+                    onChange={(e) => {
+                      setPendingFiles((prev) => ({
+                        ...prev,
+                        [section.type]: Array.from(e.target.files || []),
+                      }));
+                    }}
+                  />
+                </div>
+              </fieldset>
+            );
+          })}
+
+          {/* Upload all pending */}
+          {Object.values(pendingFiles).some((files) => files.length > 0) ? (
+            <button
+              type="button"
+              className="form-submit"
+              onClick={async () => {
+                setError("");
+                try {
+                  const uploads = [];
+                  for (const [type, files] of Object.entries(pendingFiles)) {
+                    for (const file of files) {
+                      const formData = new FormData();
+                      formData.set("kit_id", String(Number(kitId)));
+                      formData.set("type", type);
+                      formData.set("file", file);
+                      uploads.push(api.uploadAsset(formData));
+                    }
+                  }
+                  await Promise.all(uploads);
+                  setPendingFiles({});
+                  // Refresh assets
+                  const rows = await api.getAssets({ kitId: Number(kitId), skip: 0, limit: 50 });
+                  setAssets(rows.items || []);
+                } catch (err) {
+                  setError(toUserMessage(err));
+                }
+              }}
+            >
+              Upload Pending Files
+            </button>
+          ) : null}
         </article>
       ) : null}
 

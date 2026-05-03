@@ -1337,3 +1337,27 @@ th {
   font-weight: 600;
   width: 100%;
 }
+
+.file-preview-delete {
+  padding: 0.2rem 0.4rem;
+  font-size: 0.72rem;
+  border-radius: 4px;
+  margin-top: 0.25rem;
+}
+
+.file-preview-placeholder {
+  width: 100%;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  background: #f0ebe2;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.file-preview-pending {
+  opacity: 0.7;
+  border-style: dashed;
+}
