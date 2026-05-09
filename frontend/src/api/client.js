@@ -228,4 +228,12 @@ export const api = {
     request(`/filters/${field}/${encodeURIComponent(value)}`, {
       method: "DELETE",
     }),
+  getImmichTags: () => request("/immich/tags"),
+  searchImmichAssets: (tagIds, page = 1, size = 60) =>
+    request("/immich/search", {
+      method: "POST",
+      body: JSON.stringify({ tagIds, page, size }),
+    }),
+  getImmichThumbUrl: (assetId) => `${API_BASE_URL}/immich/assets/${assetId}/thumbnail`,
+  getImmichOriginalUrl: (assetId) => `${API_BASE_URL}/immich/assets/${assetId}/original`,
 };
