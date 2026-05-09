@@ -18,6 +18,9 @@ class AssetRead(BaseModel):
     mime_type: str
     description: str | None = None
     is_external_reference: bool
+    external_source: str | None = None
+    external_asset_id: str | None = None
+    external_thumbnail_url: str | None = None
     created_at: datetime
 
     @computed_field

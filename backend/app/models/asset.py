@@ -20,6 +20,9 @@ class Asset(Base):
     mime_type = Column(String(128), nullable=False)
     description = Column(String(255), nullable=True)
     is_external_reference = Column(Boolean, default=False, nullable=False)
+    external_source = Column(String(32), nullable=True)
+    external_asset_id = Column(String(64), nullable=True)
+    external_thumbnail_url = Column(String(512), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     kit = relationship("Kit", back_populates="assets", foreign_keys=[kit_id])
