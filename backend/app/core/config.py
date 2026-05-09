@@ -33,6 +33,9 @@ class Settings(BaseSettings):
         default_factory=lambda: ["application/pdf"]
     )
 
+    immich_api_endpoint: str = ""
+    immich_api_key: str = ""
+
     cors_origins: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: ["http://localhost:3000"]
     )
