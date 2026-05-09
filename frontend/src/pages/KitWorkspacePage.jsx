@@ -5,6 +5,7 @@ import { GRADES, BUILD_STATUS, LINK_CATEGORIES } from "../constants";
 import { buildKitEditForm, toUserMessage } from "../utils";
 import AppHeader from "../components/AppHeader";
 import ImageViewer from "../components/ImageViewer";
+import ImmichPicker from "../components/ImmichPicker";
 
 export default function KitWorkspacePage({
   token,
@@ -37,6 +38,7 @@ export default function KitWorkspacePage({
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [tagPickerOpen, setTagPickerOpen] = useState(false);
+  const [immichSection, setImmichSection] = useState(null);
   const [selectedExistingTagId, setSelectedExistingTagId] = useState("");
   const [newTagName, setNewTagName] = useState("");
   const [newTagColor, setNewTagColor] = useState("#d9822b");
@@ -153,6 +155,26 @@ export default function KitWorkspacePage({
     } catch (err) {
       setError(toUserMessage(err));
     }
+  }
+
+  async function handleImmichConfirm(immichAssets) {
+    setError("");
+    try {
+      for (const a of immichAssets) {
+        const fd = new FormData();
+        fd.set("kit_id", String(Number(kitId)));
+        fd.set("type", immichSection);
+        fd.set("external_source", "immich");
+        fd.set("external_asset_id", a.id);
+        fd.set("external_thumbnail_url", a.thumbnailUrl);
+        await api.uploadAsset(fd);
+      }
+      const rows = await api.getAssets({ kitId: Number(kitId), skip: 0, limit: 50 });
+      setAssets(rows.items || []);
+    } catch (err) {
+      setError(toUserMessage(err));
+    }
+    setImmichSection(null);
   }
 
   async function submitKitUpdate(event) {
@@ -504,7 +526,7 @@ export default function KitWorkspacePage({
                 ) : null}
 
                 {/* Add files */}
-                <div style={{ marginTop: "0.6rem" }}>
+                <div style={{ marginTop: "0.6rem", display: "flex", gap: "0.5rem", alignItems: "center" }}>
                   <label className="file-input-btn">
                     Add files...
                     <input
@@ -520,6 +542,13 @@ export default function KitWorkspacePage({
                       }}
                     />
                   </label>
+                  <button
+                    type="button"
+                    className="immich-btn"
+                    onClick={() => setImmichSection(section.type)}
+                  >
+                    Immich
+                  </button>
                 </div>
               </fieldset>
             );
@@ -639,6 +668,12 @@ export default function KitWorkspacePage({
           }}
         />
       ) : null}
+
+      <ImmichPicker
+        open={immichSection !== null}
+        onClose={() => setImmichSection(null)}
+        onConfirm={handleImmichConfirm}
+      />
     </section>
   );
 }

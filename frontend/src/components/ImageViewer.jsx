@@ -5,6 +5,20 @@ const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 5;
 const ZOOM_STEP = 0.25;
 
+function getAssetUrl(asset) {
+    if (asset.external_source === "immich") {
+        return api.getImmichOriginalUrl(asset.external_asset_id);
+    }
+    return api.assetFileUrl(asset.id);
+}
+
+function getThumbUrl(asset) {
+    if (asset.external_source === "immich") {
+        return api.getImmichThumbUrl(asset.external_asset_id);
+    }
+    return api.assetFileUrl(asset.id);
+}
+
 export default function ImageViewer({ images, currentIndex, coverId, onClose, onSetCover, onNavigate }) {
     const [zoom, setZoom] = useState(1);
     const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -159,7 +173,7 @@ export default function ImageViewer({ images, currentIndex, coverId, onClose, on
             >
                 <img
                     ref={imgRef}
-                    src={api.assetFileUrl(current.id)}
+                    src={getAssetUrl(current)}
                     alt={current.original_filename}
                     onDoubleClick={handleDoubleClick}
                     style={{
@@ -202,7 +216,7 @@ export default function ImageViewer({ images, currentIndex, coverId, onClose, on
                         className={`image-viewer-thumb ${i === currentIndex ? "active" : ""}`}
                         onClick={() => onNavigate(i)}
                     >
-                        <img src={api.assetFileUrl(img.id)} alt={img.original_filename} />
+                        <img src={getThumbUrl(img)} alt={img.original_filename} />
                     </button>
                 ))}
             </div>

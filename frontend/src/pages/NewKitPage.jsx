@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { GRADES, BUILD_STATUS, EMPTY_KIT_FORM } from "../constants";
 import AppHeader from "../components/AppHeader";
+import ImmichPicker from "../components/ImmichPicker";
 import { api } from "../api/client";
 
 const IMAGE_SECTIONS = [
@@ -22,7 +23,9 @@ export default function NewKitPage({ tags, facetOptions, onCreate }) {
     const [submitting, setSubmitting] = useState(false);
     const [newTagName, setNewTagName] = useState("");
     const [newTagColor, setNewTagColor] = useState("#d9822b");
+    const [immichSection, setImmichSection] = useState(null);
     const nextKeyRef = useRef(1);
+    const immichKeyRef = useRef(Date.now());
 
     function updateField(field, value) {
         setForm((prev) => ({ ...prev, [field]: value }));
@@ -45,6 +48,23 @@ export default function NewKitPage({ tags, facetOptions, onCreate }) {
             ...prev,
             [sectionKey]: prev[sectionKey].filter((item) => item.key !== key),
         }));
+    }
+
+    function handleImmichConfirm(immichAssets) {
+        const items = immichAssets.map((a) => ({
+            key: immichKeyRef.current++,
+            file: null,
+            status: "done",
+            externalAssetId: a.id,
+            thumbnailUrl: a.thumbnailUrl,
+            previewUrl: a.thumbnailUrl,
+            filename: a.originalFileName || a.id,
+        }));
+        setSectionItems((prev) => ({
+            ...prev,
+            [immichSection]: [...prev[immichSection], ...items],
+        }));
+        setImmichSection(null);
     }
 
     function toggleTag(id) {
@@ -88,6 +108,42 @@ export default function NewKitPage({ tags, facetOptions, onCreate }) {
                             ...prev,
                             [section.key]: prev[section.key].map((i) =>
                                 i.key === item.key ? { ...i, status: "done" } : i
+                            ),
+                        }));
+                    } catch (_) {
+                        setSectionItems((prev) => ({
+                            ...prev,
+                            [section.key]: prev[section.key].map((i) =>
+                                i.key === item.key ? { ...i, status: "error" } : i
+                            ),
+                        }));
+                    }
+                }
+            }
+
+            // Upload Immich items (external asset references)
+            for (const section of IMAGE_SECTIONS) {
+                for (const item of sectionItems[section.key].filter(
+                    (i) => i.externalAssetId && !i.file && i.status === "done"
+                )) {
+                    setSectionItems((prev) => ({
+                        ...prev,
+                        [section.key]: prev[section.key].map((i) =>
+                            i.key === item.key ? { ...i, status: "uploading" } : i
+                        ),
+                    }));
+                    try {
+                        const formData = new FormData();
+                        formData.set("kit_id", String(createdKit.id));
+                        formData.set("type", section.type);
+                        formData.set("external_source", "immich");
+                        formData.set("external_asset_id", item.externalAssetId);
+                        formData.set("external_thumbnail_url", item.thumbnailUrl);
+                        await api.uploadAsset(formData);
+                        setSectionItems((prev) => ({
+                            ...prev,
+                            [section.key]: prev[section.key].map((i) =>
+                                i.key === item.key ? { ...i, status: "done", saved: true } : i
                             ),
                         }));
                     } catch (_) {
@@ -311,26 +367,38 @@ export default function NewKitPage({ tags, facetOptions, onCreate }) {
                 {IMAGE_SECTIONS.map((section) => (
                     <fieldset key={section.key} className="form-section">
                         <legend>{section.label}</legend>
-                        <label className="file-input-btn">
-                            Select files...
-                            <input
-                                type="file"
-                                hidden
-                                accept="image/*"
-                                multiple
-                                onChange={(e) => addFiles(section.key, e.target.files)}
-                            />
-                        </label>
+                        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                            <label className="file-input-btn">
+                                Select files...
+                                <input
+                                    type="file"
+                                    hidden
+                                    accept="image/*"
+                                    multiple
+                                    onChange={(e) => addFiles(section.key, e.target.files)}
+                                />
+                            </label>
+                            <button
+                                type="button"
+                                className="immich-btn"
+                                onClick={() => setImmichSection(section.key)}
+                            >
+                                Immich
+                            </button>
+                        </div>
                         {sectionItems[section.key].length > 0 ? (
                             <div className="file-preview-grid">
                                 {sectionItems[section.key].map((item) => (
                                     <div key={item.key} className={`file-preview-item ${item.status === "error" ? "file-upload-error" : ""}`}>
-                                        <img src={URL.createObjectURL(item.file)} alt={item.file.name} />
+                                        <img
+                                            src={item.file ? URL.createObjectURL(item.file) : item.thumbnailUrl}
+                                            alt={item.file?.name || item.filename}
+                                        />
                                         <button className="file-preview-remove" type="button"
                                             onClick={() => removeFile(section.key, item.key)}
                                             disabled={item.status === "uploading"}
                                         >×</button>
-                                        <span className="file-preview-name">{item.file.name}</span>
+                                        <span className="file-preview-name">{item.file?.name || item.filename}</span>
                                         <span className={`file-upload-status status-${item.status}`}>
                                             {item.status === "pending" ? "Ready" :
                                              item.status === "uploading" ? "Uploading..." :
@@ -355,6 +423,12 @@ export default function NewKitPage({ tags, facetOptions, onCreate }) {
                     {submitting ? "Creating..." : totalFiles > 0 ? `Create Kit + Upload ${totalFiles} Image(s)` : "Create Kit"}
                 </button>
             </form>
+
+            <ImmichPicker
+                open={immichSection !== null}
+                onClose={() => setImmichSection(null)}
+                onConfirm={handleImmichConfirm}
+            />
         </section>
     );
 }
