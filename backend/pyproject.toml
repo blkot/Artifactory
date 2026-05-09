@@ -18,7 +18,8 @@ dependencies = [
   "pillow>=11.1.0",
   "python-magic>=0.4.27",
   "aiofiles>=24.1.0",
-  "python-dotenv>=1.0.1"
+  "python-dotenv>=1.0.1",
+  "requests>=2.33.1",
 ]
 
 [project.optional-dependencies]
