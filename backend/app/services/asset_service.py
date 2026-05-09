@@ -27,13 +27,36 @@ class AssetService:
         self,
         kit_id: int,
         asset_type: AssetType,
-        file: UploadFile,
+        file: UploadFile | None = None,
         description: str | None = None,
         is_external_reference: bool = False,
+        external_source: str | None = None,
+        external_asset_id: str | None = None,
+        external_thumbnail_url: str | None = None,
     ) -> Asset:
         kit = self.db.query(Kit).filter(Kit.id == kit_id).first()
         if not kit:
             raise AssetUploadException(f"Kit {kit_id} not found")
+
+        if external_source:
+            asset = Asset(
+                kit_id=kit_id,
+                type=asset_type,
+                file_path="",
+                thumbnail_path=None,
+                original_filename=external_asset_id or "immich_asset",
+                file_size=0,
+                mime_type="image/jpeg",
+                description=description,
+                is_external_reference=True,
+                external_source=external_source,
+                external_asset_id=external_asset_id,
+                external_thumbnail_url=external_thumbnail_url,
+            )
+            self.db.add(asset)
+            self.db.commit()
+            self.db.refresh(asset)
+            return asset
 
         contents = await file.read()
         size = len(contents)

@@ -30,16 +30,27 @@ async def upload_asset(
     type: AssetType = Form(...),
     description: str | None = Form(default=None),
     is_external_reference: bool = Form(default=False),
-    file: UploadFile = File(...),
+    external_source: str | None = Form(default=None),
+    external_asset_id: str | None = Form(default=None),
+    external_thumbnail_url: str | None = Form(default=None),
+    file: UploadFile | None = File(default=None),
     db: Session = Depends(get_db),
     _auth=Depends(require_write_access),
 ):
+    from app.api.exceptions import AssetUploadException
+
+    if not external_source and file is None:
+        raise AssetUploadException("file is required when external_source is not set")
+
     return await AssetService(db).create_asset(
         kit_id=kit_id,
         asset_type=type,
         file=file,
         description=description,
         is_external_reference=is_external_reference,
+        external_source=external_source,
+        external_asset_id=external_asset_id,
+        external_thumbnail_url=external_thumbnail_url,
     )
 
 
