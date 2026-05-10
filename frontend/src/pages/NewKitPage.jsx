@@ -160,7 +160,12 @@ export default function NewKitPage({ tags, facetOptions, onCreate }) {
 
             if (onCreate) await onCreate(createdKit);
         } catch (err) {
-            setError(err.message || "Failed to create kit");
+            const detailErrors = err?.details?.errors;
+            if (detailErrors && detailErrors.length > 0) {
+                setError(detailErrors.map(e => e.msg).join("; "));
+            } else {
+                setError(err.message || "Failed to create kit");
+            }
         } finally {
             setSubmitting(false);
         }
