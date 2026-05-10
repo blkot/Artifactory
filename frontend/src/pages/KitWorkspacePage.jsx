@@ -7,6 +7,13 @@ import AppHeader from "../components/AppHeader";
 import ImageViewer from "../components/ImageViewer";
 import ImmichPicker from "../components/ImmichPicker";
 
+function getAssetDisplayUrl(asset) {
+    if (asset.external_source === "immich") {
+        return api.getImmichThumbUrl(asset.external_asset_id);
+    }
+    return getAssetDisplayUrl(asset.id);
+}
+
 export default function KitWorkspacePage({
   token,
   allTags,
@@ -392,7 +399,7 @@ export default function KitWorkspacePage({
             <h3>Cover Image</h3>
             <div className="cover-panel-media" style={{ marginTop: "0.5rem" }}>
               {coverAsset ? (
-                <img src={api.assetFileUrl(coverAsset.id)} alt={coverAsset.original_filename} onClick={() => {
+                <img src={getAssetDisplayUrl(coverAsset.id)} alt={coverAsset.original_filename} onClick={() => {
                   const idx = imageAssets.findIndex(a => a.id === coverAsset.id);
                   setViewerOpen(true);
                   setViewerIndex(idx >= 0 ? idx : 0);
@@ -424,7 +431,7 @@ export default function KitWorkspacePage({
                         setViewerIndex(idx >= 0 ? idx : 0);
                       }}
                     >
-                      <img src={api.assetFileUrl(asset.id)} alt={asset.original_filename} />
+                      <img src={getAssetDisplayUrl(asset.id)} alt={asset.original_filename} />
                       <div className="kit-gallery-meta">
                         <p>{asset.original_filename}</p>
                         {coverAsset?.id === asset.id ? <span className="gallery-badge">Cover</span> : null}
@@ -466,7 +473,7 @@ export default function KitWorkspacePage({
                     <div className="file-preview-grid">
                       {sectionAssets.map((asset) => (
                         <div key={asset.id} className="file-preview-item">
-                          <img src={api.assetFileUrl(asset.id)} alt={asset.original_filename} />
+                          <img src={getAssetDisplayUrl(asset.id)} alt={asset.original_filename} />
                           <span>{asset.original_filename}</span>
                           <button
                             type="button"
@@ -485,7 +492,7 @@ export default function KitWorkspacePage({
                           {sectionAssets.map((asset) => (
                             <tr key={asset.id}>
                               <td>
-                                <a href={api.assetFileUrl(asset.id)} target="_blank" rel="noreferrer">
+                                <a href={getAssetDisplayUrl(asset.id)} target="_blank" rel="noreferrer">
                                   {asset.original_filename}
                                 </a>
                               </td>
