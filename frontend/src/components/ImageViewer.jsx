@@ -14,7 +14,7 @@ function getAssetUrl(asset) {
 
 function getThumbUrl(asset) {
     if (asset.external_source === "immich") {
-        return api.getImmichThumbUrl(asset.external_asset_id);
+        return asset.external_thumbnail_url || api.getImmichThumbUrl(asset.external_asset_id);
     }
     return api.assetFileUrl(asset.id);
 }

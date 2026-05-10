@@ -8,6 +8,9 @@ import ImageViewer from "../components/ImageViewer";
 import ImmichPicker from "../components/ImmichPicker";
 
 function getAssetDisplayUrl(asset) {
+    if (asset.external_source === "immich" && asset.external_thumbnail_url) {
+        return asset.external_thumbnail_url;
+    }
     if (asset.external_source === "immich") {
         return api.getImmichThumbUrl(asset.external_asset_id);
     }

@@ -141,11 +141,15 @@ export default function App() {
             const images = (payload.items || []).filter((item) => item.mime_type?.startsWith("image/"));
             const preferredId = kit.thumbnail_asset_id || preferredThumbnailAssetMap[String(kit.id)];
             const image = images.find((item) => item.id === preferredId) || images[0] || null;
-            return [kit.id, image
-                ? (image.external_source === "immich"
-                    ? api.getImmichThumbUrl(image.external_asset_id)
-                    : api.assetFileUrl(image.id))
-                : null];
+            let url = null;
+            if (image) {
+                if (image.external_source === "immich") {
+                    url = image.external_thumbnail_url || api.getImmichThumbUrl(image.external_asset_id);
+                } else {
+                    url = api.assetFileUrl(image.id);
+                }
+            }
+            return [kit.id, url];
           } catch (_) {
             return [kit.id, null];
           }
