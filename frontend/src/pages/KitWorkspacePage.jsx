@@ -11,7 +11,7 @@ function getAssetDisplayUrl(asset) {
     if (asset.external_source === "immich") {
         return api.getImmichThumbUrl(asset.external_asset_id);
     }
-    return getAssetDisplayUrl(asset.id);
+    return api.assetFileUrl(asset.id);
 }
 
 export default function KitWorkspacePage({
