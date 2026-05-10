@@ -21,6 +21,7 @@ export default function NewKitPage({ tags, facetOptions, onCreate }) {
         referenceImages: [],
     });
     const [submitting, setSubmitting] = useState(false);
+    const [error, setError] = useState("");
     const [newTagName, setNewTagName] = useState("");
     const [newTagColor, setNewTagColor] = useState("#d9822b");
     const [immichSection, setImmichSection] = useState(null);
@@ -158,6 +159,8 @@ export default function NewKitPage({ tags, facetOptions, onCreate }) {
             }
 
             if (onCreate) await onCreate(createdKit);
+        } catch (err) {
+            setError(err.message || "Failed to create kit");
         } finally {
             setSubmitting(false);
         }
@@ -170,6 +173,7 @@ export default function NewKitPage({ tags, facetOptions, onCreate }) {
             <AppHeader
                 title="Create Kit"
                 subtitle="Add a new kit to your collection."
+                error={error}
             />
 
             <form className="kit-form" onSubmit={handleSubmit}>
