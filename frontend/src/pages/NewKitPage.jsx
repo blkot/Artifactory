@@ -22,6 +22,7 @@ export default function NewKitPage({ tags, facetOptions, onCreate }) {
     });
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState("");
+    const [fieldErrors, setFieldErrors] = useState({});
     const [newTagName, setNewTagName] = useState("");
     const [newTagColor, setNewTagColor] = useState("#d9822b");
     const [immichSection, setImmichSection] = useState(null);
@@ -30,6 +31,31 @@ export default function NewKitPage({ tags, facetOptions, onCreate }) {
 
     function updateField(field, value) {
         setForm((prev) => ({ ...prev, [field]: value }));
+        // Clear error on change
+        if (fieldErrors[field]) {
+            setFieldErrors((prev) => { const next = { ...prev }; delete next[field]; return next; });
+        }
+    }
+
+    function validateField(field, value) {
+        const v = (value ?? "").trim();
+        if (["name", "series", "brand", "scale"].includes(field) && !v) {
+            setFieldErrors((prev) => ({ ...prev, [field]: "Required" }));
+            return;
+        }
+        if (field === "name" && v.length > 200) {
+            setFieldErrors((prev) => ({ ...prev, [field]: "Max 200 characters" }));
+            return;
+        }
+        if (["series", "brand"].includes(field) && v.length > 120) {
+            setFieldErrors((prev) => ({ ...prev, [field]: "Max 120 characters" }));
+            return;
+        }
+        setFieldErrors((prev) => { const next = { ...prev }; delete next[field]; return next; });
+    }
+
+    function handleBlur(field) {
+        return (e) => validateField(field, e.target.value);
     }
 
     function addFiles(sectionKey, fileList) {
@@ -162,7 +188,16 @@ export default function NewKitPage({ tags, facetOptions, onCreate }) {
         } catch (err) {
             const detailErrors = err?.details?.errors;
             if (detailErrors && detailErrors.length > 0) {
-                setError(detailErrors.map(e => e.msg).join("; "));
+                const byField = {};
+                for (const e of detailErrors) {
+                    const field = e.loc?.[e.loc.length - 1];
+                    if (field && field !== "body") byField[field] = e.msg;
+                }
+                if (Object.keys(byField).length > 0) {
+                    setFieldErrors(byField);
+                } else {
+                    setError(detailErrors.map(e => e.msg).join("; "));
+                }
             } else {
                 setError(err.message || "Failed to create kit");
             }
@@ -185,7 +220,7 @@ export default function NewKitPage({ tags, facetOptions, onCreate }) {
                 {/* Required Fields */}
                 <fieldset className="form-section">
                     <legend>Required Fields</legend>
-                    <div className="form-row">
+                    <div className={`form-row${fieldErrors.name ? " has-error" : ""}`}>
                         <label htmlFor="kit-name">Name *</label>
                         <input
                             id="kit-name"
@@ -193,7 +228,9 @@ export default function NewKitPage({ tags, facetOptions, onCreate }) {
                             placeholder="e.g. RX-78-2 Gundam"
                             value={form.name}
                             onChange={(e) => updateField("name", e.target.value)}
+                            onBlur={handleBlur("name")}
                         />
+                        {fieldErrors.name ? <span className="field-error">{fieldErrors.name}</span> : null}
                     </div>
                     <div className="form-row">
                         <label htmlFor="kit-grade">Grade *</label>
@@ -207,7 +244,7 @@ export default function NewKitPage({ tags, facetOptions, onCreate }) {
                             ))}
                         </select>
                     </div>
-                    <div className="form-row">
+                    <div className={`form-row${fieldErrors.series ? " has-error" : ""}`}>
                         <label htmlFor="kit-series">Series *</label>
                         <input
                             id="kit-series"
@@ -216,14 +253,16 @@ export default function NewKitPage({ tags, facetOptions, onCreate }) {
                             placeholder="e.g. Universal Century"
                             value={form.series}
                             onChange={(e) => updateField("series", e.target.value)}
+                            onBlur={handleBlur("series")}
                         />
                         <datalist id="series-list">
                             {(facetOptions?.series || []).map((val) => (
                                 <option key={val} value={val} />
                             ))}
                         </datalist>
+                        {fieldErrors.series ? <span className="field-error">{fieldErrors.series}</span> : null}
                     </div>
-                    <div className="form-row">
+                    <div className={`form-row${fieldErrors.brand ? " has-error" : ""}`}>
                         <label htmlFor="kit-brand">Brand *</label>
                         <input
                             id="kit-brand"
@@ -232,14 +271,16 @@ export default function NewKitPage({ tags, facetOptions, onCreate }) {
                             placeholder="e.g. Bandai"
                             value={form.brand}
                             onChange={(e) => updateField("brand", e.target.value)}
+                            onBlur={handleBlur("brand")}
                         />
                         <datalist id="brand-list">
                             {(facetOptions?.brand || []).map((val) => (
                                 <option key={val} value={val} />
                             ))}
                         </datalist>
+                        {fieldErrors.brand ? <span className="field-error">{fieldErrors.brand}</span> : null}
                     </div>
-                    <div className="form-row">
+                    <div className={`form-row${fieldErrors.scale ? " has-error" : ""}`}>
                         <label htmlFor="kit-scale">Scale *</label>
                         <input
                             id="kit-scale"
@@ -248,12 +289,14 @@ export default function NewKitPage({ tags, facetOptions, onCreate }) {
                             placeholder="e.g. 1/144"
                             value={form.scale}
                             onChange={(e) => updateField("scale", e.target.value)}
+                            onBlur={handleBlur("scale")}
                         />
                         <datalist id="scale-list">
                             {(facetOptions?.scale || []).map((val) => (
                                 <option key={val} value={val} />
                             ))}
                         </datalist>
+                        {fieldErrors.scale ? <span className="field-error">{fieldErrors.scale}</span> : null}
                     </div>
                 </fieldset>
 

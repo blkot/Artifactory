@@ -1161,6 +1161,18 @@ th {
   width: 100%;
 }
 
+.form-row.has-error input,
+.form-row.has-error select {
+  border-color: var(--danger);
+  background: #fff5f5;
+}
+
+.field-error {
+  font-size: 0.78rem;
+  color: var(--danger);
+  font-weight: 500;
+}
+
 .file-count {
   margin-top: 0.5rem;
   font-size: 0.82rem;

@@ -36,13 +36,6 @@ class KitBase(BaseModel):
             raise ValueError("purchase_price must be greater than or equal to 0")
         return value
 
-    @field_validator("scale")
-    @classmethod
-    def validate_scale_format(cls, value: str) -> str:
-        if "/" not in value:
-            raise ValueError("scale must look like '1/144'")
-        return value
-
 
 class KitCreate(KitBase):
     model_config = ConfigDict(
@@ -95,15 +88,6 @@ class KitUpdate(BaseModel):
     def validate_update_purchase_price(cls, value: Decimal | None) -> Decimal | None:
         if value is not None and value < 0:
             raise ValueError("purchase_price must be greater than or equal to 0")
-        return value
-
-    @field_validator("scale")
-    @classmethod
-    def validate_update_scale_format(cls, value: str | None) -> str | None:
-        if value is None:
-            return value
-        if "/" not in value:
-            raise ValueError("scale must look like '1/144'")
         return value
 
     model_config = ConfigDict(
