@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 
 from app.api.deps import require_read_access
@@ -32,7 +32,6 @@ def search_assets(
 @router.get("/assets/{asset_id}/thumbnail", summary="Get Immich asset thumbnail")
 def get_thumbnail(
     asset_id: str,
-    _auth=Depends(require_read_access),
 ):
     try:
         content = ImmichService().get_asset_thumbnail(asset_id)
@@ -44,7 +43,6 @@ def get_thumbnail(
 @router.get("/assets/{asset_id}/original", summary="Get Immich asset original")
 def get_original(
     asset_id: str,
-    _auth=Depends(require_read_access),
 ):
     try:
         content = ImmichService().get_asset_original(asset_id)
