@@ -463,6 +463,49 @@ export default function KitWorkspacePage({
             {imageAssets.length === 0 ? (
               <div className="kit-card-empty muted" style={{ marginTop: "0.7rem" }}>No image assets yet. Upload in the Assets tab.</div>
             ) : null}
+
+            {/* Links summary */}
+            {links.length > 0 ? (
+              <div className="span-2" style={{ marginTop: "0.5rem" }}>
+                <div className="panel-head">
+                  <h3>Links ({links.length})</h3>
+                </div>
+                <div className="table-wrap" style={{ marginTop: "0.5rem" }}>
+                  <table>
+                    <tbody>
+                      {links.slice(0, 5).map((link) => (
+                        <tr key={link.id}>
+                          <td><a href={link.url} target="_blank" rel="noreferrer">{link.title}</a></td>
+                          <td><span className="muted">{link.category}</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : null}
+
+            {/* Timeline summary */}
+            {timeline.length > 0 ? (
+              <div className="span-2" style={{ marginTop: "0.5rem" }}>
+                <div className="panel-head">
+                  <h3>Timeline ({timeline.length})</h3>
+                </div>
+                <div className="table-wrap" style={{ marginTop: "0.5rem" }}>
+                  <table>
+                    <tbody>
+                      {timeline.slice(0, 5).map((entry) => (
+                        <tr key={entry.id}>
+                          <td>{new Date(entry.created_at).toLocaleDateString()}</td>
+                          <td>{entry.status.replace("BuildStatus.", "")}</td>
+                          <td><span className="muted">{entry.notes || "-"}</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : null}
           </div>
         </article>
       ) : null}
@@ -494,9 +537,11 @@ export default function KitWorkspacePage({
                         <div key={asset.id} className="file-preview-item">
                           <div className="kit-gallery-thumb-wrap">
                             <img src={getAssetDisplayUrl(asset)} alt={asset.original_filename} />
-                            <span className={`asset-source-badge ${asset.external_source === "immich" ? "source-immich" : "source-native"}`}>
-                              {asset.external_source === "immich" ? "IMMICH" : "NATIVE"}
-                            </span>
+                            {asset.external_source === "immich" ? (
+                              <img className="asset-source-badge" src="/src/assets/immich-icon.svg" alt="Immich" />
+                            ) : (
+                              <span className="asset-source-badge source-native">N</span>
+                            )}
                           </div>
                           <span>{asset.original_filename}</span>
                           <button
