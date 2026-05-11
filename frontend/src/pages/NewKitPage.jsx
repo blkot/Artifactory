@@ -77,7 +77,7 @@ export default function NewKitPage({ tags, facetOptions, onCreate }) {
         }));
     }
 
-    function handleImmichConfirm(immichAssets) {
+    function handleImmichConfirm(immichAssets, tagNames) {
         const items = immichAssets.map((a) => ({
             key: immichKeyRef.current++,
             file: null,
@@ -91,6 +91,20 @@ export default function NewKitPage({ tags, facetOptions, onCreate }) {
             ...prev,
             [immichSection]: [...prev[immichSection], ...items],
         }));
+        // Apply Immich tags to the kit form if tags exist
+        if (tagNames && tagNames.length > 0) {
+            setForm((prev) => {
+                const existing = new Set(prev.tag_ids);
+                for (const name of tagNames) {
+                    const matching = tags?.find(t => t.name.toLowerCase() === name.toLowerCase());
+                    if (matching) existing.add(matching.id);
+                }
+                if (existing.size !== prev.tag_ids.length) {
+                    return { ...prev, tag_ids: [...existing] };
+                }
+                return prev;
+            });
+        }
         setImmichSection(null);
     }
 

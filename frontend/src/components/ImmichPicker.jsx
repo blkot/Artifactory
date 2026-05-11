@@ -132,11 +132,15 @@ export default function ImmichPicker({ open, onClose, onConfirm }) {
         } else {
             selected = assets.filter(a => selectedAssetIds.has(a.id));
         }
+        // Collect unique tag names from all selected assets
+        const tagNames = [...new Set(
+            selected.flatMap(a => (a.tags || []).map(t => t.value || t.name).filter(Boolean))
+        )];
         onConfirm(selected.map(a => ({
             id: a.id,
             thumbnailUrl: api.getImmichThumbUrl(a.id),
             originalFileName: a.originalFileName || "",
-        })));
+        })), tagNames);
         onClose();
     }
 

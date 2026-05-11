@@ -179,7 +179,7 @@ export default function KitWorkspacePage({
     }
   }
 
-  async function handleImmichConfirm(immichAssets) {
+  async function handleImmichConfirm(immichAssets, tagNames) {
     setError("");
     try {
       for (const a of immichAssets) {
@@ -190,6 +190,30 @@ export default function KitWorkspacePage({
         fd.set("external_asset_id", a.id);
         fd.set("external_thumbnail_url", a.thumbnailUrl);
         await api.uploadAsset(fd);
+      }
+      // Mirror Immich tags to the kit
+      if (tagNames && tagNames.length > 0 && kit) {
+        const existingTags = allTags || [];
+        const existingKitTagIds = new Set((kit.tags || []).map(t => t.id));
+        const newTagIds = [];
+        for (const name of tagNames) {
+          const match = existingTags.find(t => t.name.toLowerCase() === name.toLowerCase());
+          if (match) {
+            if (!existingKitTagIds.has(match.id)) newTagIds.push(match.id);
+          } else {
+            try {
+              const created = await api.createTag({ name, color: "#d9822b" });
+              newTagIds.push(created.id);
+              existingTags.push(created);
+            } catch (_) {}
+          }
+        }
+        if (newTagIds.length > 0) {
+          const nextIds = [...existingKitTagIds, ...newTagIds];
+          const updated = await api.updateKit(Number(kitId), { tag_ids: nextIds });
+          setKit(updated);
+          if (onKitMutated) await onKitMutated();
+        }
       }
       const rows = await api.getAssets({ kitId: Number(kitId), skip: 0, limit: 50 });
       setAssets(rows.items || []);
