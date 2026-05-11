@@ -56,8 +56,10 @@ dist/
 build/
 *.egg-info/
 
+# Node
+node_modules/
+
 # Frontend
-frontend/node_modules/
 frontend/.vite/
 
 # Backend
