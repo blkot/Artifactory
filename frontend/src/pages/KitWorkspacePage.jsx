@@ -329,27 +329,66 @@ export default function KitWorkspacePage({
               </div>
             </div>
             {isEditing && editForm ? (
-              <form className="form-grid" onSubmit={submitKitUpdate}>
-                <input required value={editForm.name} onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))} />
-                <select value={editForm.grade} onChange={(e) => setEditForm((prev) => ({ ...prev, grade: e.target.value }))}>
-                  {GRADES.map((grade) => <option key={`edit-grade-${grade}`} value={grade}>{grade}</option>)}
-                </select>
-                <input required value={editForm.series} onChange={(e) => setEditForm((prev) => ({ ...prev, series: e.target.value }))} />
-                <input required value={editForm.brand} onChange={(e) => setEditForm((prev) => ({ ...prev, brand: e.target.value }))} />
-                <input required value={editForm.scale} onChange={(e) => setEditForm((prev) => ({ ...prev, scale: e.target.value }))} />
-                <input value={editForm.kit_number} onChange={(e) => setEditForm((prev) => ({ ...prev, kit_number: e.target.value }))} />
-                <input type="date" value={editForm.purchase_date} onChange={(e) => setEditForm((prev) => ({ ...prev, purchase_date: e.target.value }))} />
-                <input type="number" step="0.01" min="0" value={editForm.purchase_price} onChange={(e) => setEditForm((prev) => ({ ...prev, purchase_price: e.target.value }))} />
-                <input value={editForm.purchase_shop} onChange={(e) => setEditForm((prev) => ({ ...prev, purchase_shop: e.target.value }))} />
-                <select value={editForm.build_status} onChange={(e) => setEditForm((prev) => ({ ...prev, build_status: e.target.value }))}>
-                  {BUILD_STATUS.map((status) => <option key={`edit-status-${status}`} value={status}>{status}</option>)}
-                </select>
-                <button type="submit" className="span-2" disabled={isSaving}>
+              <div className="kit-form">
+                <fieldset className="form-section">
+                  <legend>Required</legend>
+                  <div className="form-row">
+                    <label>Name</label>
+                    <input required value={editForm.name} onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))} />
+                  </div>
+                  <div className="form-row">
+                    <label>Grade</label>
+                    <select value={editForm.grade} onChange={(e) => setEditForm((prev) => ({ ...prev, grade: e.target.value }))}>
+                      {GRADES.map((grade) => <option key={`edit-grade-${grade}`} value={grade}>{grade}</option>)}
+                    </select>
+                  </div>
+                  <div className="form-row">
+                    <label>Series</label>
+                    <input required value={editForm.series} onChange={(e) => setEditForm((prev) => ({ ...prev, series: e.target.value }))} />
+                  </div>
+                  <div className="form-row">
+                    <label>Brand</label>
+                    <input required value={editForm.brand} onChange={(e) => setEditForm((prev) => ({ ...prev, brand: e.target.value }))} />
+                  </div>
+                  <div className="form-row">
+                    <label>Scale</label>
+                    <input required value={editForm.scale} onChange={(e) => setEditForm((prev) => ({ ...prev, scale: e.target.value }))} />
+                  </div>
+                </fieldset>
+                <fieldset className="form-section">
+                  <legend>Optional</legend>
+                  <div className="form-row">
+                    <label>Kit Number</label>
+                    <input value={editForm.kit_number} onChange={(e) => setEditForm((prev) => ({ ...prev, kit_number: e.target.value }))} />
+                  </div>
+                  <div className="form-row">
+                    <label>Purchase Date</label>
+                    <input type="date" value={editForm.purchase_date} onChange={(e) => setEditForm((prev) => ({ ...prev, purchase_date: e.target.value }))} />
+                  </div>
+                  <div className="form-row">
+                    <label>Purchase Price</label>
+                    <input type="number" step="0.01" min="0" value={editForm.purchase_price} onChange={(e) => setEditForm((prev) => ({ ...prev, purchase_price: e.target.value }))} />
+                  </div>
+                  <div className="form-row">
+                    <label>Purchase Shop</label>
+                    <input value={editForm.purchase_shop} onChange={(e) => setEditForm((prev) => ({ ...prev, purchase_shop: e.target.value }))} />
+                  </div>
+                  <div className="form-row">
+                    <label>Build Status</label>
+                    <select value={editForm.build_status} onChange={(e) => setEditForm((prev) => ({ ...prev, build_status: e.target.value }))}>
+                      {BUILD_STATUS.map((status) => <option key={`edit-status-${status}`} value={status}>{status}</option>)}
+                    </select>
+                  </div>
+                </fieldset>
+                <button type="submit" className="form-submit" disabled={isSaving}>
                   {isSaving ? "Saving..." : "Save Changes"}
                 </button>
-              </form>
+              </div>
             ) : (
               <>
+            <p><strong>Name:</strong> {kit.name}</p>
+            <p><strong>Grade:</strong> {kit.grade}</p>
+            <p><strong>Series:</strong> {kit.series}</p>
             <p><strong>Brand:</strong> {kit.brand}</p>
             <p><strong>Scale:</strong> {kit.scale}</p>
             <p><strong>Kit Number:</strong> {kit.kit_number || "-"}</p>
