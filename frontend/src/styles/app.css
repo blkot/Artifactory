@@ -1219,7 +1219,7 @@ th {
   background: #fff;
 }
 
-.file-preview-item img {
+.file-preview-item img:not(.asset-source-badge) {
   width: 100%;
   aspect-ratio: 1;
   object-fit: cover;
