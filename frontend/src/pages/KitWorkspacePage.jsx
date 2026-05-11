@@ -445,7 +445,12 @@ export default function KitWorkspacePage({
                         setViewerIndex(idx >= 0 ? idx : 0);
                       }}
                     >
-                      <img src={getAssetDisplayUrl(asset)} alt={asset.original_filename} />
+                      <div className="kit-gallery-thumb-wrap">
+                        <img src={getAssetDisplayUrl(asset)} alt={asset.original_filename} />
+                        <span className={`asset-source-badge ${asset.external_source === "immich" ? "source-immich" : "source-native"}`}>
+                          {asset.external_source === "immich" ? "IMMICH" : "NATIVE"}
+                        </span>
+                      </div>
                       <div className="kit-gallery-meta">
                         <p>{asset.original_filename}</p>
                         {coverAsset?.id === asset.id ? <span className="gallery-badge">Cover</span> : null}
@@ -487,7 +492,12 @@ export default function KitWorkspacePage({
                     <div className="file-preview-grid">
                       {sectionAssets.map((asset) => (
                         <div key={asset.id} className="file-preview-item">
-                          <img src={getAssetDisplayUrl(asset)} alt={asset.original_filename} />
+                          <div className="kit-gallery-thumb-wrap">
+                            <img src={getAssetDisplayUrl(asset)} alt={asset.original_filename} />
+                            <span className={`asset-source-badge ${asset.external_source === "immich" ? "source-immich" : "source-native"}`}>
+                              {asset.external_source === "immich" ? "IMMICH" : "NATIVE"}
+                            </span>
+                          </div>
                           <span>{asset.original_filename}</span>
                           <button
                             type="button"
