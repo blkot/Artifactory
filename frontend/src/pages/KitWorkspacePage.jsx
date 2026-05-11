@@ -70,10 +70,15 @@ export default function KitWorkspacePage({
   );
   const coverAsset = useMemo(
     () => {
-      const coverId = thumbnailAssetMap?.[String(kitId)] || null;
-      return imageAssets.find((asset) => asset.id === coverId) || imageAssets[0] || null;
+      const coverId = kit?.thumbnail_asset_id || thumbnailAssetMap?.[String(kitId)] || null;
+      if (coverId) {
+        const match = imageAssets.find((asset) => asset.id === coverId);
+        if (match) return match;
+      }
+      // Only fall back to first image if no cover was ever set
+      return null;
     },
-    [imageAssets, thumbnailAssetMap, kitId]
+    [imageAssets, thumbnailAssetMap, kitId, kit?.thumbnail_asset_id]
   );
   const imageAssetsByType = useMemo(() => {
     const groups = {};
