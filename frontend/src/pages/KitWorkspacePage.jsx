@@ -1,11 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { api } from "../api/client";
+import { api, API_BASE_URL } from "../api/client";
 import { GRADES, BUILD_STATUS, LINK_CATEGORIES } from "../constants";
 import { buildKitEditForm, toUserMessage } from "../utils";
 import AppHeader from "../components/AppHeader";
 import ImageViewer from "../components/ImageViewer";
 import ImmichPicker from "../components/ImmichPicker";
+
+function assetUrl(path) {
+    if (path && path.startsWith("/api/v1/")) {
+        return `${API_BASE_URL}${path.slice(7)}`;
+    }
+    return path;
+}
 
 function getAssetDisplayUrl(asset) {
     if (!asset) return "";
@@ -14,6 +21,9 @@ function getAssetDisplayUrl(asset) {
     }
     if (asset.external_source === "immich") {
         return api.getImmichThumbUrl(asset.external_asset_id);
+    }
+    if (asset.thumbnail_url) {
+        return assetUrl(asset.thumbnail_url);
     }
     return api.assetFileUrl(asset.id);
 }

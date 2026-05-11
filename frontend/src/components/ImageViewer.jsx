@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { api } from "../api/client";
+import { api, API_BASE_URL } from "../api/client";
 
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 5;
@@ -15,6 +15,12 @@ function getAssetUrl(asset) {
 function getThumbUrl(asset) {
     if (asset.external_source === "immich") {
         return asset.external_thumbnail_url || api.getImmichThumbUrl(asset.external_asset_id);
+    }
+    if (asset.thumbnail_url) {
+        if (asset.thumbnail_url.startsWith("/api/v1/")) {
+            return `${API_BASE_URL}${asset.thumbnail_url.slice(7)}`;
+        }
+        return asset.thumbnail_url;
     }
     return api.assetFileUrl(asset.id);
 }

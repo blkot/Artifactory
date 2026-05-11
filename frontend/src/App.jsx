@@ -7,7 +7,7 @@ import {
   useNavigate,
 } from "react-router-dom";
 
-import { api, loadTokenFromStorage, setAuthToken } from "./api/client";
+import { api, API_BASE_URL, loadTokenFromStorage, setAuthToken } from "./api/client";
 
 import { PAGE_SIZE, THUMBNAIL_PREF_STORAGE_KEY, CUSTOM_FACET_STORAGE_KEY, EMPTY_KIT_FILTERS } from "./constants";
 import { caseFold, buildCaseInsensitiveFacetOptions, toUserMessage } from "./utils";
@@ -145,6 +145,10 @@ export default function App() {
             if (image) {
                 if (image.external_source === "immich") {
                     url = image.external_thumbnail_url || api.getImmichThumbUrl(image.external_asset_id);
+                } else if (image.thumbnail_url) {
+                    url = image.thumbnail_url.startsWith("/api/v1/")
+                        ? `${API_BASE_URL}${image.thumbnail_url.slice(7)}`
+                        : image.thumbnail_url;
                 } else {
                     url = api.assetFileUrl(image.id);
                 }
