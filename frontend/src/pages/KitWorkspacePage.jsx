@@ -448,9 +448,11 @@ export default function KitWorkspacePage({
                     >
                       <div className="kit-gallery-thumb-wrap">
                         <img src={getAssetDisplayUrl(asset)} alt={asset.original_filename} />
-                        <span className={`asset-source-badge ${asset.external_source === "immich" ? "source-immich" : "source-native"}`}>
-                          {asset.external_source === "immich" ? "IMMICH" : "NATIVE"}
-                        </span>
+                        {asset.external_source === "immich" ? (
+                          <img className="asset-source-badge" src={immichIcon} alt="Immich" />
+                        ) : (
+                          <span className="asset-source-badge source-native">N</span>
+                        )}
                       </div>
                       <div className="kit-gallery-meta">
                         <p>{asset.original_filename}</p>

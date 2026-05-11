@@ -645,11 +645,12 @@ th {
   position: absolute;
   top: 0.2rem;
   right: 0.2rem;
-  width: 1.25rem;
-  height: 1.25rem;
+  width: 1.5rem;
+  height: 1.5rem;
   border-radius: 4px;
   object-fit: contain;
-  padding: 0.15rem;
+  padding: 0.12rem;
+  background: rgba(0, 0, 0, 0.15);
 }
 
 .asset-source-badge.source-native {
