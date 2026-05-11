@@ -56,6 +56,7 @@ export default function App() {
   const [kitFacetOptions, setKitFacetOptions] = useState({ brand: [], series: [], scale: [] });
   const [stats, setStats] = useState(null);
   const [kitFilters, setKitFilters] = useState(EMPTY_KIT_FILTERS);
+  const [kitSort, setKitSort] = useState({ sort: "created_at", order: "desc" });
   const [kitPage, setKitPage] = useState(1);
   const [kitTotal, setKitTotal] = useState(0);
   const [kitsLoadingMore, setKitsLoadingMore] = useState(false);
@@ -82,14 +83,14 @@ export default function App() {
     }
   }
 
-  async function loadKits({ nextPage = 1, nextFilters = kitFilters, append = false } = {}) {
+  async function loadKits({ nextPage = 1, nextFilters = kitFilters, nextSort = kitSort, append = false } = {}) {
     setError("");
     if (append) setKitsLoadingMore(true);
     const skip = Math.max(0, (nextPage - 1) * PAGE_SIZE);
     try {
       const payload = Object.values(nextFilters).some((value) => String(value).trim().length > 0)
-        ? await api.searchKits({ ...nextFilters, skip, limit: PAGE_SIZE })
-        : await api.getKits({ skip, limit: PAGE_SIZE });
+        ? await api.searchKits({ ...nextFilters, skip, limit: PAGE_SIZE, ...nextSort })
+        : await api.getKits({ skip, limit: PAGE_SIZE, ...nextSort });
       if (append) {
         setKits((prev) => {
           const merged = [...prev, ...(payload.items || [])];
@@ -113,8 +114,8 @@ export default function App() {
   }, [token, customFacetValues]);
 
   useEffect(() => {
-    void loadKits({ nextPage: 1, nextFilters: kitFilters, append: false });
-  }, [token]);
+    void loadKits({ nextPage: 1, nextFilters: kitFilters, nextSort: kitSort, append: false });
+  }, [token, kitSort]);
 
   useEffect(() => {
     if (typeof window === "undefined") return () => {};
@@ -337,7 +338,7 @@ export default function App() {
       <TopNav token={token} onLogout={handleLogout} />
       <section className="content-shell">
         <Routes>
-          <Route path="/dashboard" element={<DashboardPage kits={kits} kitPreviewMap={kitPreviewMap} stats={stats} />} />
+          <Route path="/dashboard" element={<DashboardPage kits={kits} kitPreviewMap={kitPreviewMap} stats={stats} kitSort={kitSort} onSortChange={setKitSort} />} />
           <Route
             path="/kits"
             element={
@@ -366,6 +367,8 @@ export default function App() {
                   })
                 }
                 onClearFilters={clearFilters}
+                kitSort={kitSort}
+                onSortChange={setKitSort}
                 onLoadMore={loadMoreKits}
                 hasMore={kits.length < kitTotal}
                 loadingMore={kitsLoadingMore}

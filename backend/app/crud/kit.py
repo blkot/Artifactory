@@ -5,9 +5,14 @@ from app.models.kit import Kit
 from app.schemas.kit import KitCreate, KitUpdate
 
 
-def list_kits(db: Session, skip: int = 0, limit: int = 20) -> tuple[list[Kit], int]:
+def list_kits(db: Session, skip: int = 0, limit: int = 20, sort: str = "created_at", order: str = "desc") -> tuple[list[Kit], int]:
     query = db.query(Kit)
     total = db.query(func.count(Kit.id)).scalar() or 0
+    sort_col = getattr(Kit, sort, Kit.created_at)
+    if order == "asc":
+        query = query.order_by(sort_col.asc())
+    else:
+        query = query.order_by(sort_col.desc())
     return query.offset(skip).limit(limit).all(), total
 
 

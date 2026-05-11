@@ -140,10 +140,12 @@ export async function request(path, options = {}) {
 }
 
 export const api = {
-  getKits: ({ skip = 0, limit = 20 } = {}) => {
+  getKits: ({ skip = 0, limit = 20, sort = "created_at", order = "desc" } = {}) => {
     const params = new URLSearchParams();
     params.set("skip", String(skip));
     params.set("limit", String(limit));
+    params.set("sort", sort);
+    params.set("order", order);
     return request(`/kits?${params.toString()}`);
   },
   searchKits: (filters = {}) => {

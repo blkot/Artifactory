@@ -1311,6 +1311,27 @@ th {
 .file-upload-error {
   border-color: var(--danger);
 }
+.sort-toggle {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.sort-btn {
+  padding: 0.3rem 0.65rem;
+  font-size: 0.82rem;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.5);
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.sort-btn.active {
+  background: var(--ink);
+  color: var(--accent-ink);
+  border-color: var(--ink);
+}
+
 /* ---- Immich Picker ---- */
 .immich-picker-backdrop {
   position: fixed;

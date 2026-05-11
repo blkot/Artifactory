@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { NavLink } from "react-router-dom";
 import AppHeader from "../components/AppHeader";
 
-export default function DashboardPage({ kits, kitPreviewMap, stats }) {
+export default function DashboardPage({ kits, kitPreviewMap, stats, kitSort, onSortChange }) {
   const recentKits = kits.slice(0, 10);
   const statusMap = useMemo(() => {
     const map = {};
@@ -18,6 +18,20 @@ export default function DashboardPage({ kits, kitPreviewMap, stats }) {
         title="Dashboard"
         subtitle="Monitor your build pipeline and collection growth."
       />
+      {onSortChange ? (
+        <div className="sort-toggle">
+          <button
+            type="button"
+            className={kitSort?.order === "desc" ? "sort-btn active" : "sort-btn"}
+            onClick={() => onSortChange({ sort: "created_at", order: "desc" })}
+          >Newest</button>
+          <button
+            type="button"
+            className={kitSort?.order === "asc" ? "sort-btn active" : "sort-btn"}
+            onClick={() => onSortChange({ sort: "created_at", order: "asc" })}
+          >Oldest</button>
+        </div>
+      ) : null}
       <div className="stats-grid modern">
         <article className="metric-card">
           <p>Total Kits</p>

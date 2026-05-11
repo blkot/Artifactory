@@ -16,6 +16,8 @@ export default function KitsPage({
   onLoadMore,
   hasMore,
   loadingMore,
+  kitSort,
+  onSortChange,
 }) {
   const loadMoreRef = useRef(null);
   const listScrollRef = useRef(null);
@@ -46,6 +48,12 @@ export default function KitsPage({
           title="Kit Inventory"
           subtitle="Search, filter, and route into per-kit workspaces."
         />
+        {onSortChange ? (
+          <div className="sort-toggle">
+            <button type="button" className={kitSort?.order === "desc" ? "sort-btn active" : "sort-btn"} onClick={() => onSortChange({ sort: "created_at", order: "desc" })}>Newest</button>
+            <button type="button" className={kitSort?.order === "asc" ? "sort-btn active" : "sort-btn"} onClick={() => onSortChange({ sort: "created_at", order: "asc" })}>Oldest</button>
+          </div>
+        ) : null}
         <article className="panel kits-banner-panel">
           <div className="panel-head kits-banner-head">
             <h2>Kits</h2>

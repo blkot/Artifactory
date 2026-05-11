@@ -25,10 +25,12 @@ settings = get_settings()
 def get_kits(
     skip: int = 0,
     limit: int = Query(default=settings.api_page_size_default, le=settings.api_page_size_max),
+    sort: str = "created_at",
+    order: str = "desc",
     db: Session = Depends(get_db),
     _auth=Depends(require_read_access),
 ):
-    items, total = list_kits(db, skip, limit)
+    items, total = list_kits(db, skip, limit, sort=sort, order=order)
     return KitListResponse(items=items, total=total)
 
 
@@ -69,6 +71,8 @@ def search_kits(
     tag: list[str] | None = Query(default=None),
     skip: int = 0,
     limit: int = Query(default=settings.api_page_size_default, le=settings.api_page_size_max),
+    sort: str = "created_at",
+    order: str = "desc",
     db: Session = Depends(get_db),
     _auth=Depends(require_read_access),
 ):
@@ -82,6 +86,8 @@ def search_kits(
         tag=tag,
         skip=skip,
         limit=limit,
+        sort=sort,
+        order=order,
     )
     return KitListResponse(items=items, total=total)
 
