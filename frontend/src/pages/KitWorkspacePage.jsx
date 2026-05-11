@@ -6,6 +6,7 @@ import { buildKitEditForm, toUserMessage } from "../utils";
 import AppHeader from "../components/AppHeader";
 import ImageViewer from "../components/ImageViewer";
 import ImmichPicker from "../components/ImmichPicker";
+import immichIcon from "../assets/immich-icon.svg";
 
 function assetUrl(path) {
     if (path && path.startsWith("/api/v1/")) {
@@ -538,7 +539,7 @@ export default function KitWorkspacePage({
                           <div className="kit-gallery-thumb-wrap">
                             <img src={getAssetDisplayUrl(asset)} alt={asset.original_filename} />
                             {asset.external_source === "immich" ? (
-                              <img className="asset-source-badge" src="/src/assets/immich-icon.svg" alt="Immich" />
+                              <img className="asset-source-badge" src={immichIcon} alt="Immich" />
                             ) : (
                               <span className="asset-source-badge source-native">N</span>
                             )}
