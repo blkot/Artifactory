@@ -15,6 +15,10 @@ function assetUrl(path) {
     return path;
 }
 
+function onImmichImgError(e) {
+    e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='45' viewBox='0 0 60 45'%3E%3Crect fill='%23ece3d7' width='60' height='45' rx='4'/%3E%3Ctext x='30' y='26' text-anchor='middle' font-size='10' fill='%238a9198' font-family='monospace'%3Eimmich%3C/text%3E%3Ctext x='30' y='38' text-anchor='middle' font-size='8' fill='%238a9198' font-family='monospace'%3Eoffline%3C/text%3E%3C/svg%3E";
+}
+
 function getAssetDisplayUrl(asset) {
     if (!asset) return "";
     if (asset.external_source === "immich" && asset.external_thumbnail_url) {
@@ -515,7 +519,7 @@ export default function KitWorkspacePage({
                       }}
                     >
                       <div className="kit-gallery-thumb-wrap">
-                        <img src={getAssetDisplayUrl(asset)} alt={asset.original_filename} />
+                        <img src={getAssetDisplayUrl(asset)} alt={asset.original_filename} onError={onImmichImgError} />
                         {asset.external_source === "immich" ? (
                           <img className="asset-source-badge" src={immichIcon} alt="Immich" />
                         ) : (
@@ -607,7 +611,7 @@ export default function KitWorkspacePage({
                       {sectionAssets.map((asset) => (
                         <div key={asset.id} className="file-preview-item">
                           <div className="kit-gallery-thumb-wrap">
-                            <img src={getAssetDisplayUrl(asset)} alt={asset.original_filename} />
+                            <img src={getAssetDisplayUrl(asset)} alt={asset.original_filename} onError={onImmichImgError} />
                             {asset.external_source === "immich" ? (
                               <img className="asset-source-badge" src={immichIcon} alt="Immich" />
                             ) : (

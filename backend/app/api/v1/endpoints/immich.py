@@ -1,10 +1,28 @@
+import requests
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 
 from app.api.deps import require_read_access
+from app.core.config import get_settings
 from app.services.immich_service import ImmichService
 
 router = APIRouter(prefix="/immich", tags=["immich"])
+
+
+@router.get("/health", summary="Check Immich connectivity")
+def health_check() -> dict:
+    settings = get_settings()
+    if not settings.immich_api_endpoint:
+        return {"status": "unconfigured", "immich": False}
+    try:
+        resp = requests.head(
+            f"{settings.immich_api_endpoint.rstrip('/')}/tags",
+            headers={"x-api-key": settings.immich_api_key},
+            timeout=5,
+        )
+        return {"status": "ok", "immich": resp.ok}
+    except requests.RequestException as e:
+        return {"status": "error", "immich": False, "detail": str(e)}
 
 
 @router.get("/tags", summary="List Immich tags")
