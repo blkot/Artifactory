@@ -53,7 +53,7 @@ export default function ImageViewer({ images, currentIndex, coverId, onClose, on
             slides={slides}
             on={{ view: ({ index }) => onNavigate(index), exited: onClose }}
             plugins={[Zoom, Thumbnails, Counter]}
-            zoom={{ maxZoomPixelRatio: 5, scrollToZoom: true }}
+            zoom={{ maxZoomPixelRatio: 5, scrollToZoom: true, zoomInMultiplier: 1.5, wheelZoomDistanceFactor: 200, doubleClickDelay: 300, doubleClickMaxStops: 1 }}
             thumbnails={{ position: "bottom", gap: 4 }}
             counter={{ container: { style: { top: "unset", bottom: "56px" } } }}
             toolbar={{
