@@ -643,14 +643,14 @@ th {
 
 .asset-source-badge {
   position: absolute;
-  top: 0.2rem;
-  right: 0.2rem;
-  width: 1.5rem;
-  height: 1.5rem;
-  border-radius: 4px;
+  top: 0.15rem;
+  right: 0.15rem;
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 3px;
   object-fit: contain;
-  padding: 0.12rem;
-  background: rgba(0, 0, 0, 0.15);
+  padding: 0.1rem;
+  background: rgba(0, 0, 0, 0.12);
 }
 
 .asset-source-badge.source-native {
