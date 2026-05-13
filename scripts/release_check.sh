@@ -20,7 +20,7 @@ printf "[release-check] frontend build...\n"
 printf "[release-check] alembic migration cycle...\n"
 (
   cd "$BACKEND_DIR"
-  tmpdb="$(mktemp -t artifactory_release_check).db"
+  tmpdb="$(mktemp -t artifactory_release_check_XXXXXXXX).db"
   PYTHONPATH=. DATABASE_URL="sqlite:///$tmpdb" uv run alembic upgrade head >/dev/null
   PYTHONPATH=. DATABASE_URL="sqlite:///$tmpdb" uv run alembic downgrade base >/dev/null
   PYTHONPATH=. DATABASE_URL="sqlite:///$tmpdb" uv run alembic upgrade head >/dev/null
