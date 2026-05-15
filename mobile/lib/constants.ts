@@ -16,7 +16,19 @@ export const EMPTY_KIT_FILTERS = {
   tag: [],
 };
 
-export const EMPTY_KIT_FORM = {
+export const EMPTY_KIT_FORM: {
+  name: string;
+  grade: string;
+  series: string;
+  brand: string;
+  scale: string;
+  kit_number: string;
+  purchase_date: string;
+  purchase_price: string;
+  purchase_shop: string;
+  build_status: string;
+  tag_ids: number[];
+} = {
   name: "",
   grade: "HG",
   series: "",
