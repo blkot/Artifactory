@@ -1,16 +1,299 @@
-import { View, Text, StyleSheet } from "react-native";
+import React, { useEffect, useState, useCallback } from "react";
+import {
+  View,
+  Text,
+  ScrollView,
+  SafeAreaView,
+  StyleSheet,
+  ViewStyle,
+  TextStyle,
+} from "react-native";
+import { router } from "expo-router";
+import * as SecureStore from "expo-secure-store";
+import {
+  loadTokenFromStorage,
+  setAuthToken,
+  api,
+  API_BASE_URL,
+} from "../../lib/api/client";
+import Button from "../../components/ui/Button";
+import ErrorBanner from "../../components/ui/ErrorBanner";
+
+// ---------------------------------------------------------------------------
+// Design tokens
+// ---------------------------------------------------------------------------
+
+const colors = {
+  bg: "#f3efe8",
+  surface: "#ffffff",
+  ink: "#1b1d1f",
+  muted: "#5f6870",
+  line: "#d7d2c9",
+  accent: "#c5672a",
+  danger: "#8d2b2b",
+};
+
+const REFRESH_TOKEN_KEY = "artifactory_refresh_token";
+
+// ---------------------------------------------------------------------------
+// Settings Screen
+// ---------------------------------------------------------------------------
 
 export default function SettingsScreen() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // -----------------------------------------------------------------------
+  // Auth check
+  // -----------------------------------------------------------------------
+
+  const checkAuth = useCallback(async () => {
+    setCheckingAuth(true);
+    try {
+      const token = await loadTokenFromStorage();
+      setIsAuthenticated(token !== null);
+    } catch {
+      setIsAuthenticated(false);
+    } finally {
+      setCheckingAuth(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
+
+  // -----------------------------------------------------------------------
+  // Handlers
+  // -----------------------------------------------------------------------
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    setError(null);
+    try {
+      const refreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
+      try {
+        await api.logout(refreshToken);
+      } catch {
+        // Server-side logout is best-effort
+      }
+      await setAuthToken(null);
+      await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+      setIsAuthenticated(false);
+    } catch (err: any) {
+      setError(err?.message || "Failed to logout");
+    } finally {
+      setLoggingOut(false);
+    }
+  };
+
+  // -----------------------------------------------------------------------
+  // Render
+  // -----------------------------------------------------------------------
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Settings</Text>
-      <Text style={styles.subtitle}>Environment and session info coming soon</Text>
-    </View>
+    <SafeAreaView style={styles.safe}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.title}>Settings</Text>
+          <Text style={styles.subtitle}>App configuration and session</Text>
+        </View>
+
+        {/* Error banner */}
+        {error ? (
+          <View style={styles.errorWrapper}>
+            <ErrorBanner message={error} />
+          </View>
+        ) : null}
+
+        {/* Session */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Session</Text>
+          <View style={styles.statusRow}>
+            <Text style={styles.statusLabel}>Status</Text>
+            {checkingAuth ? (
+              <Text style={styles.statusMuted}>Checking...</Text>
+            ) : (
+              <Text
+                style={[
+                  styles.statusValue,
+                  isAuthenticated ? styles.authActive : styles.authInactive,
+                ]}
+              >
+                {isAuthenticated ? "Authenticated" : "Guest"}
+              </Text>
+            )}
+          </View>
+        </View>
+
+        {/* API Base URL */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Connection</Text>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>API Base URL</Text>
+            <Text style={styles.infoValue} selectable>
+              {API_BASE_URL}
+            </Text>
+          </View>
+        </View>
+
+        {/* Filter Management */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Data</Text>
+          <Text style={styles.sectionDescription}>
+            Manage custom filter values for brands, series, scales, and tags.
+          </Text>
+          <View style={styles.actionRow}>
+            <Button
+              title="Open Filter Management"
+              onPress={() => router.push("/settings/filters")}
+              variant="ghost"
+            />
+          </View>
+        </View>
+
+        {/* Logout */}
+        {isAuthenticated ? (
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionTitle}>Account</Text>
+            <Button
+              title={loggingOut ? "Logging out..." : "Logout"}
+              onPress={handleLogout}
+              variant="danger"
+              disabled={loggingOut}
+              loading={loggingOut}
+            />
+          </View>
+        ) : null}
+
+        <View style={styles.bottomSpacer} />
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
+// ---------------------------------------------------------------------------
+// Styles
+// ---------------------------------------------------------------------------
+
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", alignItems: "center", padding: 20 },
-  title: { fontSize: 24, fontWeight: "700", marginBottom: 8 },
-  subtitle: { fontSize: 16, color: "#666" },
+  safe: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  } as ViewStyle,
+
+  scroll: {
+    flex: 1,
+  } as ViewStyle,
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 40,
+  } as ViewStyle,
+
+  // Header
+  header: {
+    marginBottom: 24,
+  } as ViewStyle,
+  title: {
+    fontSize: 30,
+    fontWeight: "800",
+    color: colors.ink,
+    letterSpacing: -0.5,
+  } as TextStyle,
+  subtitle: {
+    fontSize: 16,
+    color: colors.muted,
+    marginTop: 4,
+  } as TextStyle,
+
+  // Error
+  errorWrapper: {
+    marginBottom: 16,
+  } as ViewStyle,
+
+  // Section card
+  sectionCard: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 16,
+  } as ViewStyle,
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: colors.ink,
+    marginBottom: 12,
+  } as TextStyle,
+  sectionDescription: {
+    fontSize: 14,
+    color: colors.muted,
+    lineHeight: 20,
+    marginBottom: 12,
+  } as TextStyle,
+
+  // Session
+  statusRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  } as ViewStyle,
+  statusLabel: {
+    fontSize: 15,
+    color: colors.ink,
+    fontWeight: "500",
+  } as TextStyle,
+  statusValue: {
+    fontSize: 15,
+    fontWeight: "600",
+  } as TextStyle,
+  statusMuted: {
+    fontSize: 15,
+    color: colors.muted,
+  } as TextStyle,
+  authActive: {
+    color: "#2a6b4e",
+  } as TextStyle,
+  authInactive: {
+    color: colors.muted,
+  } as TextStyle,
+
+  // Connection
+  infoRow: {
+    gap: 6,
+  } as ViewStyle,
+  infoLabel: {
+    fontSize: 13,
+    color: colors.muted,
+    fontWeight: "500",
+  } as TextStyle,
+  infoValue: {
+    fontSize: 14,
+    color: colors.ink,
+    fontFamily: "monospace",
+    backgroundColor: "#f5f3ee",
+    borderRadius: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    overflow: "hidden",
+  } as TextStyle,
+
+  // Actions
+  actionRow: {
+    alignItems: "flex-start",
+  } as ViewStyle,
+
+  // Bottom spacer
+  bottomSpacer: {
+    height: 48,
+  } as ViewStyle,
 });

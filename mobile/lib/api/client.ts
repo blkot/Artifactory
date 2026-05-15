@@ -271,4 +271,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ value }),
     }),
+  deleteFilterValue: (field: string, value: string) =>
+    request(`/filters/${field}/${encodeURIComponent(value)}`, {
+      method: "DELETE",
+    }),
 };
