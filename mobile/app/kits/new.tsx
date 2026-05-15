@@ -21,6 +21,7 @@ import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
 import Tag from "../../components/ui/Tag";
 import ErrorBanner from "../../components/ui/ErrorBanner";
+import ImmichPicker from "../../components/ImmichPicker";
 
 // ---------------------------------------------------------------------------
 // Design tokens
@@ -51,10 +52,19 @@ const TAG_COLORS = [
 // Types
 // ---------------------------------------------------------------------------
 
+interface ImmichAssetRef {
+  id: string;
+  originalFileName?: string;
+  originalPath?: string;
+}
+
 interface SectionItem {
   key: string;
   file: ImagePicker.ImagePickerAsset;
   status: "pending" | "uploading" | "done" | "error";
+  // For Immich imports
+  immichAsset?: ImmichAssetRef;
+  isImmich?: boolean;
 }
 
 interface SectionItems {
@@ -156,6 +166,12 @@ export default function NewKitScreen() {
   const [newTagName, setNewTagName] = useState("");
   const [newTagColor, setNewTagColor] = useState(TAG_COLORS[0]);
   const [showCreateTag, setShowCreateTag] = useState(false);
+
+  // Immich picker
+  const [immichPickerOpen, setImmichPickerOpen] = useState(false);
+  const [activeImmichSection, setActiveImmichSection] =
+    useState<keyof SectionItems | null>(null);
+  const [immichTagNames, setImmichTagNames] = useState<string[]>([]);
 
   // -----------------------------------------------------------------------
   // Data loading
@@ -271,6 +287,38 @@ export default function NewKitScreen() {
     }));
   };
 
+  const handleImmichConfirm = (
+    immichAssets: any[],
+    tagNames: string[]
+  ) => {
+    setImmichPickerOpen(false);
+    setImmichTagNames(tagNames);
+
+    const section = activeImmichSection;
+    if (!section) return;
+
+    const newItems: SectionItem[] = immichAssets.map((asset) => ({
+      key: nextKey(),
+      file: {
+        uri: "",
+        width: 0,
+        height: 0,
+      } as ImagePicker.ImagePickerAsset,
+      status: "pending" as const,
+      immichAsset: {
+        id: asset.id,
+        originalFileName: asset.originalFileName,
+        originalPath: asset.originalPath,
+      },
+      isImmich: true,
+    }));
+
+    setSectionItems((prev) => ({
+      ...prev,
+      [section]: [...prev[section], ...newItems],
+    }));
+  };
+
   // -----------------------------------------------------------------------
   // Submit
   // -----------------------------------------------------------------------
@@ -339,20 +387,44 @@ export default function NewKitScreen() {
           });
 
           try {
-            const formData = new FormData();
-            formData.append("kit_id", String(createdKit.id));
-            formData.append("type", assetType);
-            const fileObj = {
-              uri: item.file.uri,
-              name: item.file.fileName || `image_${Date.now()}.jpg`,
-              type: item.file.mimeType || "image/jpeg",
-            } as any;
-            formData.append("file", fileObj);
-            if (item.file.fileName) {
-              formData.append("original_filename", item.file.fileName);
-            }
+            if (item.isImmich && item.immichAsset) {
+              // Immich external asset: create asset record without file upload
+              const formData = new FormData();
+              formData.append("kit_id", String(createdKit.id));
+              formData.append("type", assetType);
+              formData.append("external_source", "immich");
+              formData.append("external_asset_id", item.immichAsset.id);
+              formData.append(
+                "original_filename",
+                item.immichAsset.originalFileName ||
+                  item.immichAsset.originalPath ||
+                  "immich_image"
+              );
+              if (immichTagNames.length > 0) {
+                formData.append(
+                  "description",
+                  `Immich tags: ${immichTagNames.join(", ")}`
+                );
+              }
 
-            await api.uploadAsset(formData);
+              await api.uploadAsset(formData);
+            } else {
+              // Local file upload
+              const formData = new FormData();
+              formData.append("kit_id", String(createdKit.id));
+              formData.append("type", assetType);
+              const fileObj = {
+                uri: item.file.uri,
+                name: item.file.fileName || `image_${Date.now()}.jpg`,
+                type: item.file.mimeType || "image/jpeg",
+              } as any;
+              formData.append("file", fileObj);
+              if (item.file.fileName) {
+                formData.append("original_filename", item.file.fileName);
+              }
+
+              await api.uploadAsset(formData);
+            }
 
             setSectionItems((prev) => {
               const updated = [...prev[section]];
@@ -417,14 +489,36 @@ export default function NewKitScreen() {
           <Text style={styles.selectFilesText}>Select files...</Text>
         </TouchableOpacity>
 
+        <TouchableOpacity
+          style={styles.immichImportButton}
+          onPress={() => {
+            setActiveImmichSection(section);
+            setImmichPickerOpen(true);
+          }}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.immichImportText}>Import from Immich</Text>
+        </TouchableOpacity>
+
         {items.length > 0 && (
           <View style={styles.previewGrid}>
             {items.map((item) => (
               <View key={item.key} style={styles.previewTile}>
-                <Image
-                  source={{ uri: item.file.uri }}
-                  style={styles.previewImage}
-                />
+                {item.isImmich && item.immichAsset ? (
+                  <View style={styles.immichPreviewPlaceholder}>
+                    <Text style={styles.immichPreviewIcon}>{"🖼"}</Text>
+                    <Text style={styles.immichPreviewLabel}>
+                      {item.immichAsset.originalFileName ||
+                        item.immichAsset.id ||
+                        "Immich"}
+                    </Text>
+                  </View>
+                ) : (
+                  <Image
+                    source={{ uri: item.file.uri }}
+                    style={styles.previewImage}
+                  />
+                )}
                 <TouchableOpacity
                   style={styles.removeButton}
                   onPress={() => removeItem(section, item.key)}
@@ -691,6 +785,16 @@ export default function NewKitScreen() {
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
+
+      {/* Immich Picker */}
+      <ImmichPicker
+        visible={immichPickerOpen}
+        onClose={() => {
+          setImmichPickerOpen(false);
+          setActiveImmichSection(null);
+        }}
+        onConfirm={handleImmichConfirm}
+      />
     </SafeAreaView>
   );
 }
@@ -951,6 +1055,43 @@ const styles = StyleSheet.create({
   statusBadgeText: {
     fontSize: 10,
     fontWeight: "600",
+  } as TextStyle,
+
+  // Immich import button
+  immichImportButton: {
+    borderWidth: 1,
+    borderColor: colors.accent,
+    borderStyle: "dashed",
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: "center",
+    marginTop: 10,
+    backgroundColor: "rgba(197,103,42,0.05)",
+  } as ViewStyle,
+  immichImportText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: colors.accent,
+  } as TextStyle,
+
+  // Immich preview placeholder
+  immichPreviewPlaceholder: {
+    width: "100%",
+    height: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#e8e4dc",
+    padding: 4,
+  } as ViewStyle,
+  immichPreviewIcon: {
+    fontSize: 18,
+    marginBottom: 2,
+  } as TextStyle,
+  immichPreviewLabel: {
+    fontSize: 8,
+    color: colors.muted,
+    textAlign: "center",
+    numberOfLines: 2,
   } as TextStyle,
 
   // Bottom spacer

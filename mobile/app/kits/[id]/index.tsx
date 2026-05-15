@@ -22,6 +22,8 @@ import Button from "../../../components/ui/Button";
 import Tag from "../../../components/ui/Tag";
 import Input from "../../../components/ui/Input";
 import ErrorBanner from "../../../components/ui/ErrorBanner";
+import ImageViewer from "../../../components/ImageViewer";
+import ImmichPicker from "../../../components/ImmichPicker";
 
 // ---------------------------------------------------------------------------
 // Design tokens
@@ -190,8 +192,12 @@ export default function KitDetailScreen() {
   const [timelineAdding, setTimelineAdding] = useState(false);
   const [timelineError, setTimelineError] = useState<string | null>(null);
 
-  // Image modal
-  const [imageModalUrl, setImageModalUrl] = useState<string | null>(null);
+  // Image viewer
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerIndex, setViewerIndex] = useState(0);
+
+  // Immich picker
+  const [immichPickerOpen, setImmichPickerOpen] = useState(false);
 
   // -----------------------------------------------------------------------
   // Data fetching
@@ -331,6 +337,38 @@ export default function KitDetailScreen() {
     } catch {
       // Best-effort
     }
+  };
+
+  const handleImmichConfirm = async (
+    immichAssets: any[],
+    tagNames: string[]
+  ) => {
+    setImmichPickerOpen(false);
+
+    for (const immichAsset of immichAssets) {
+      try {
+        const formData = new FormData();
+        formData.append("kit_id", String(kitId));
+        formData.append("type", "REFERENCE_IMAGE");
+        formData.append("external_source", "immich");
+        formData.append("external_asset_id", immichAsset.id);
+        formData.append(
+          "original_filename",
+          immichAsset.originalFileName || immichAsset.originalPath || "immich_image"
+        );
+        // Include tag names as notes/description
+        if (tagNames.length > 0) {
+          formData.append("description", `Immich tags: ${tagNames.join(", ")}`);
+        }
+
+        await api.uploadAsset(formData);
+      } catch {
+        // Best-effort per asset
+      }
+    }
+
+    // Reload assets
+    loadData();
   };
 
   // -----------------------------------------------------------------------
@@ -696,7 +734,13 @@ export default function KitDetailScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Cover Image</Text>
           <TouchableOpacity
-            onPress={() => setImageModalUrl(resolveThumbnailUrl(coverAsset))}
+            onPress={() => {
+              const idx = imageAssets.findIndex(
+                (a: any) => a.id === coverAsset.id
+              );
+              setViewerIndex(idx >= 0 ? idx : 0);
+              setViewerOpen(true);
+            }}
             activeOpacity={0.8}
           >
             <Image
@@ -713,9 +757,10 @@ export default function KitDetailScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Cover Image</Text>
           <TouchableOpacity
-            onPress={() =>
-              setImageModalUrl(resolveThumbnailUrl(imageAssets[0]))
-            }
+            onPress={() => {
+              setViewerIndex(0);
+              setViewerOpen(true);
+            }}
             activeOpacity={0.8}
           >
             <Image
@@ -749,9 +794,13 @@ export default function KitDetailScreen() {
                   <TouchableOpacity
                     key={asset.id}
                     style={styles.thumbnailWrapper}
-                    onPress={() =>
-                      setImageModalUrl(resolveThumbnailUrl(asset))
-                    }
+                    onPress={() => {
+                      const idx = imageAssets.findIndex(
+                        (a: any) => a.id === asset.id
+                      );
+                      setViewerIndex(idx >= 0 ? idx : 0);
+                      setViewerOpen(true);
+                    }}
                     activeOpacity={0.8}
                   >
                     <Image
@@ -847,6 +896,15 @@ export default function KitDetailScreen() {
       contentContainerStyle={styles.tabContentInner}
       showsVerticalScrollIndicator={false}
     >
+      {/* Import from Immich */}
+      <TouchableOpacity
+        style={styles.immichImportButton}
+        onPress={() => setImmichPickerOpen(true)}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.immichImportText}>Import from Immich</Text>
+      </TouchableOpacity>
+
       {assets.length === 0 ? (
         <View style={styles.emptyBox}>
           <Text style={styles.emptyText}>
@@ -871,9 +929,13 @@ export default function KitDetailScreen() {
                   <View key={asset.id} style={styles.assetCard}>
                     {IMAGE_ASSET_TYPES.includes(type) ? (
                       <TouchableOpacity
-                        onPress={() =>
-                          setImageModalUrl(resolveThumbnailUrl(asset))
-                        }
+                        onPress={() => {
+                          const idx = imageAssets.findIndex(
+                            (a: any) => a.id === asset.id
+                          );
+                          setViewerIndex(idx >= 0 ? idx : 0);
+                          setViewerOpen(true);
+                        }}
                         activeOpacity={0.8}
                       >
                         <Image
@@ -1155,31 +1217,24 @@ export default function KitDetailScreen() {
       {tab === "links" && renderLinksTab()}
       {tab === "timeline" && renderTimelineTab()}
 
-      {/* Full-screen image modal */}
-      <Modal
-        visible={imageModalUrl !== null}
-        transparent={false}
-        animationType="fade"
-        onRequestClose={() => setImageModalUrl(null)}
-      >
-        <SafeAreaView style={styles.modalSafe}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity
-              onPress={() => setImageModalUrl(null)}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.modalClose}>Close</Text>
-            </TouchableOpacity>
-          </View>
-          {imageModalUrl ? (
-            <Image
-              source={{ uri: imageModalUrl }}
-              style={styles.modalImage}
-              resizeMode="contain"
-            />
-          ) : null}
-        </SafeAreaView>
-      </Modal>
+      {/* Image Viewer */}
+      {viewerOpen ? (
+        <ImageViewer
+          images={imageAssets}
+          currentIndex={viewerIndex}
+          coverId={coverAsset?.id ?? null}
+          onClose={() => setViewerOpen(false)}
+          onSetCover={handleSetCover}
+          onNavigate={setViewerIndex}
+        />
+      ) : null}
+
+      {/* Immich Picker */}
+      <ImmichPicker
+        visible={immichPickerOpen}
+        onClose={() => setImmichPickerOpen(false)}
+        onConfirm={handleImmichConfirm}
+      />
     </SafeAreaView>
   );
 }
@@ -1640,7 +1695,24 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   } as TextStyle,
 
-  // Image modal
+  // Immich import button
+  immichImportButton: {
+    borderWidth: 1,
+    borderColor: colors.accent,
+    borderStyle: "dashed",
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: "center",
+    marginBottom: 16,
+    backgroundColor: "rgba(197,103,42,0.05)",
+  } as ViewStyle,
+  immichImportText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: colors.accent,
+  } as TextStyle,
+
+  // Image modal (legacy - kept for reference, replaced by ImageViewer)
   modalSafe: {
     flex: 1,
     backgroundColor: "#000000",
