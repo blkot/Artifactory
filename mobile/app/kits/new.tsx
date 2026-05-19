@@ -5,7 +5,6 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  SafeAreaView,
   StyleSheet,
   Image,
   Alert,
@@ -13,6 +12,7 @@ import {
   TextStyle,
   ImageStyle,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { api } from "../../lib/api/client";

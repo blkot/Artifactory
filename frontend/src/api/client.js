@@ -140,7 +140,7 @@ export async function request(path, options = {}) {
 }
 
 export const api = {
-  getKits: ({ skip = 0, limit = 20, sort = "created_at", order = "desc" } = {}) => {
+  getKits: ({ skip = 0, limit = 20, sort = "activity_at", order = "desc" } = {}) => {
     const params = new URLSearchParams();
     params.set("skip", String(skip));
     params.set("limit", String(limit));

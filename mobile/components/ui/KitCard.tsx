@@ -9,6 +9,7 @@ import {
   ViewStyle,
   TextStyle,
 } from "react-native";
+import { authenticatedImageSource } from "../../lib/api/client";
 
 interface KitLike {
   id?: number;
@@ -61,7 +62,7 @@ export default function KitCard({ kit, previewUrl, onPress }: KitCardProps) {
       <View style={styles.media}>
         {previewUrl ? (
           <Image
-            source={{ uri: previewUrl }}
+            source={authenticatedImageSource(previewUrl)}
             style={styles.thumbnail}
             resizeMode="cover"
           />

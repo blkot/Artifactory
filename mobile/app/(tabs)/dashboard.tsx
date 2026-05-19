@@ -3,19 +3,21 @@ import {
   View,
   Text,
   ScrollView,
-  FlatList,
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  SafeAreaView,
+  Image,
   ViewStyle,
   TextStyle,
   ImageStyle,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { api, API_BASE_URL } from "../../lib/api/client";
-import MetricCard from "../../components/ui/MetricCard";
-import KitCard from "../../components/ui/KitCard";
+import {
+  api,
+  API_BASE_URL,
+  authenticatedImageSource,
+} from "../../lib/api/client";
 import SortToggle from "../../components/ui/SortToggle";
 import ErrorBanner from "../../components/ui/ErrorBanner";
 
@@ -59,6 +61,9 @@ const IMAGE_ASSET_TYPES = [
 ];
 
 function resolveThumbnailUrl(asset: any): string {
+  if (asset.external_source === "immich" && asset.external_asset_id) {
+    return api.getImmichThumbUrl(asset.external_asset_id);
+  }
   if (asset.thumbnail_path || asset.thumbnail_url) {
     return `${API_BASE_URL}/assets/${asset.id}/thumbnail`;
   }
@@ -74,6 +79,12 @@ function formatCurrency(value: number): string {
     return `¥${value.toLocaleString()}`;
   }
   return `¥${value.toFixed(2)}`;
+}
+
+function formatStatus(status: string | undefined): string {
+  return String(status || "")
+    .replace("BuildStatus.", "")
+    .replace(/_/g, " ");
 }
 
 async function fetchKitPreview(kit: any): Promise<KitPreview> {
@@ -109,7 +120,7 @@ export default function DashboardScreen() {
 
   // Sort
   const [sort, setSort] = useState<SortValue>({
-    sort: "created_at",
+    sort: "activity_at",
     order: "desc",
   });
 
@@ -185,10 +196,9 @@ export default function DashboardScreen() {
   // Initial load
   useEffect(() => {
     loadStats();
-    loadKits(sort);
-  }, [loadStats, loadKits]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loadStats]);
 
-  // Reload kits when sort changes
+  // Load kits initially and reload when sort changes
   useEffect(() => {
     loadKits(sort);
   }, [sort, loadKits]);
@@ -204,6 +214,15 @@ export default function DashboardScreen() {
     )?.count ?? 0;
 
   const error = statsError || kitsError;
+
+  const metricItems = stats
+    ? [
+        { label: "Total", value: stats.total_kits },
+        { label: "Spent", value: formatCurrency(stats.total_spent ?? 0) },
+        { label: "Comp", value: `${Math.round(stats.completion_rate ?? 0)}%` },
+        { label: "Active", value: activeCount },
+      ]
+    : [];
 
   // -----------------------------------------------------------------------
   // Render
@@ -235,25 +254,15 @@ export default function DashboardScreen() {
               <Text style={styles.loadingText}>Loading stats...</Text>
             </View>
           ) : stats ? (
-            <View style={styles.metricGrid}>
-              <View style={styles.metricGridCell}>
-                <MetricCard label="Total" value={stats.total_kits} />
-              </View>
-              <View style={styles.metricGridCell}>
-                <MetricCard
-                  label="Spent"
-                  value={formatCurrency(stats.total_spent ?? 0)}
-                />
-              </View>
-              <View style={styles.metricGridCell}>
-                <MetricCard
-                  label="Comp %"
-                  value={`${Math.round(stats.completion_rate ?? 0)}%`}
-                />
-              </View>
-              <View style={styles.metricGridCell}>
-                <MetricCard label="Active" value={activeCount} />
-              </View>
+            <View style={styles.metricsStrip}>
+              {metricItems.map((item) => (
+                <View key={item.label} style={styles.metricTile}>
+                  <Text style={styles.metricValue} numberOfLines={1}>
+                    {item.value}
+                  </Text>
+                  <Text style={styles.metricLabel}>{item.label}</Text>
+                </View>
+              ))}
             </View>
           ) : null}
         </View>
@@ -277,23 +286,45 @@ export default function DashboardScreen() {
               </Text>
             </View>
           ) : (
-            <FlatList
-              horizontal
-              data={kits}
-              keyExtractor={(item: any) => String(item.id)}
-              renderItem={({ item }: { item: any }) => (
-                <View style={styles.kitCardWrapper}>
-                  <KitCard
-                    kit={item}
-                    previewUrl={previews.get(item.id) ?? undefined}
-                    onPress={() => router.push(`/kits/${item.id}`)}
-                  />
-                </View>
-              )}
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.kitListContent}
-              scrollEnabled={kits.length > 1}
-            />
+            <View style={styles.kitGrid}>
+              {kits.slice(0, 6).map((kit: any) => {
+                const previewUrl = previews.get(kit.id) ?? undefined;
+                return (
+                  <TouchableOpacity
+                    key={kit.id}
+                    style={styles.compactKitCard}
+                    onPress={() => router.push(`/kits/${kit.id}`)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.compactKitMedia}>
+                      {previewUrl ? (
+                        <Image
+                          source={authenticatedImageSource(previewUrl)}
+                          style={styles.compactKitImage}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <View style={styles.compactKitPlaceholder}>
+                          <Text style={styles.compactKitGrade}>
+                            {kit.grade || "?"}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                    <View style={styles.compactKitBody}>
+                      <Text style={styles.compactKitName} numberOfLines={2}>
+                        {kit.name || "Untitled"}
+                      </Text>
+                      <Text style={styles.compactKitMeta} numberOfLines={1}>
+                        {[kit.grade, kit.scale, formatStatus(kit.build_status)]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           )}
 
           {previewsLoading && kits.length > 0 ? (
@@ -401,26 +432,88 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   } as TextStyle,
 
-  // Metric grid (2 columns)
-  metricGrid: {
+  // Compact metrics
+  metricsStrip: {
+    flexDirection: "row",
+    gap: 8,
+  } as ViewStyle,
+  metricTile: {
+    flex: 1,
+    minHeight: 62,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    justifyContent: "center",
+  } as ViewStyle,
+  metricValue: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: colors.ink,
+    textAlign: "center",
+  } as TextStyle,
+  metricLabel: {
+    fontSize: 11,
+    color: colors.muted,
+    fontWeight: "600",
+    marginTop: 4,
+    textAlign: "center",
+    textTransform: "uppercase",
+  } as TextStyle,
+
+  // Recent kit grid
+  kitGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 10,
   } as ViewStyle,
-  metricGridCell: {
+  compactKitCard: {
     width: "48%",
     flexGrow: 1,
     flexBasis: "48%",
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: 10,
+    backgroundColor: colors.surface,
+    overflow: "hidden",
   } as ViewStyle,
-
-  // Kit card in horizontal list
-  kitCardWrapper: {
-    width: 200,
-    marginRight: 12,
+  compactKitMedia: {
+    aspectRatio: 1.15,
+    backgroundColor: "#ece3d7",
   } as ViewStyle,
-  kitListContent: {
-    paddingRight: 20,
+  compactKitImage: {
+    width: "100%",
+    height: "100%",
+  } as ImageStyle,
+  compactKitPlaceholder: {
+    width: "100%",
+    height: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#3a434b",
   } as ViewStyle,
+  compactKitGrade: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#fff7ef",
+  } as TextStyle,
+  compactKitBody: {
+    padding: 9,
+  } as ViewStyle,
+  compactKitName: {
+    minHeight: 34,
+    fontSize: 13,
+    lineHeight: 17,
+    fontWeight: "700",
+    color: colors.ink,
+  } as TextStyle,
+  compactKitMeta: {
+    fontSize: 11,
+    color: colors.muted,
+    marginTop: 5,
+  } as TextStyle,
 
   // Preview loading hint
   previewsHint: {

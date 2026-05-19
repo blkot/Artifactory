@@ -106,7 +106,7 @@ def get_asset_file(
         raise AssetNotFoundException(asset_id)
 
     path = Path(asset.file_path)
-    if not path.exists():
+    if not path.is_file():
         raise AssetNotFoundException(asset_id)
     return FileResponse(path=path)
 
@@ -127,7 +127,7 @@ def get_asset_thumbnail(
         raise AssetNotFoundException(asset_id)
 
     path = Path(asset.thumbnail_path)
-    if not path.exists():
+    if not path.is_file():
         raise AssetNotFoundException(asset_id)
     return FileResponse(path=path)
 

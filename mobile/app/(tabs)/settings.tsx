@@ -3,18 +3,20 @@ import {
   View,
   Text,
   ScrollView,
-  SafeAreaView,
   StyleSheet,
   ViewStyle,
   TextStyle,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import {
   loadTokenFromStorage,
   setAuthToken,
+  setRefreshToken,
   api,
   API_BASE_URL,
+  REFRESH_TOKEN_STORAGE_KEY,
 } from "../../lib/api/client";
 import Button from "../../components/ui/Button";
 import ErrorBanner from "../../components/ui/ErrorBanner";
@@ -32,8 +34,6 @@ const colors = {
   accent: "#c5672a",
   danger: "#8d2b2b",
 };
-
-const REFRESH_TOKEN_KEY = "artifactory_refresh_token";
 
 // ---------------------------------------------------------------------------
 // Settings Screen
@@ -73,14 +73,14 @@ export default function SettingsScreen() {
     setLoggingOut(true);
     setError(null);
     try {
-      const refreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
+      const refreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_STORAGE_KEY);
       try {
         await api.logout(refreshToken);
       } catch {
         // Server-side logout is best-effort
       }
       await setAuthToken(null);
-      await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+      await setRefreshToken(null);
       setIsAuthenticated(false);
     } catch (err: any) {
       setError(err?.message || "Failed to logout");

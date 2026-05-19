@@ -1,7 +1,24 @@
+from urllib.parse import urlsplit, urlunsplit
+
 from sqlalchemy.orm import Session
 
 from app.models.link import Link
 from app.schemas.link import LinkCreate, LinkUpdate
+
+
+def _normalize_url(value: str) -> str:
+    trimmed = value.strip()
+    try:
+        parts = urlsplit(trimmed)
+    except ValueError:
+        return trimmed
+
+    scheme = parts.scheme.lower()
+    netloc = parts.netloc.lower()
+    path = parts.path
+    while len(path) > 1 and path.endswith("/"):
+        path = path[:-1]
+    return urlunsplit((scheme, netloc, path, parts.query, ""))
 
 
 def list_links(db: Session, kit_id: int | None = None) -> list[Link]:
@@ -13,6 +30,12 @@ def list_links(db: Session, kit_id: int | None = None) -> list[Link]:
 
 def get_link(db: Session, link_id: int) -> Link | None:
     return db.query(Link).filter(Link.id == link_id).first()
+
+
+def find_duplicate_link(db: Session, kit_id: int, url: str) -> Link | None:
+    normalized_url = _normalize_url(url)
+    links = db.query(Link).filter(Link.kit_id == kit_id).all()
+    return next((link for link in links if _normalize_url(link.url) == normalized_url), None)
 
 
 def create_link(db: Session, payload: LinkCreate) -> Link:

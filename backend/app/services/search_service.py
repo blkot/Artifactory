@@ -20,7 +20,7 @@ class SearchService:
         tag: list[str] | None = None,
         skip: int = 0,
         limit: int = 20,
-        sort: str = "created_at",
+        sort: str = "activity_at",
         order: str = "desc",
     ) -> tuple[list[Kit], int]:
         query = self.db.query(Kit)
@@ -47,7 +47,7 @@ class SearchService:
             query = query.join(Kit.tags).filter(or_(*[Tag.name.ilike(f"%{item}%") for item in tag])).distinct()
 
         total = query.count()
-        sort_col = getattr(Kit, sort, Kit.created_at)
+        sort_col = getattr(Kit, sort, Kit.activity_at)
         if order == "asc":
             query = query.order_by(sort_col.asc())
         else:

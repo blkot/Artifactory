@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import require_read_access, require_write_access
 from app.core.config import get_settings
 from app.crud.build_log import create_for_kit, list_by_kit
-from app.crud.kit import create_kit, delete_kit, get_kit, list_kits, update_kit
+from app.crud.kit import create_kit, delete_kit, get_kit, list_kits, touch_kit_activity, update_kit
 from app.crud.tag import get_tags_by_ids
 from app.db import get_db
 from app.schemas.build_log import BuildLogCreate, BuildLogRead
@@ -25,7 +25,7 @@ settings = get_settings()
 def get_kits(
     skip: int = 0,
     limit: int = Query(default=settings.api_page_size_default, le=settings.api_page_size_max),
-    sort: str = "created_at",
+    sort: str = "activity_at",
     order: str = "desc",
     db: Session = Depends(get_db),
     _auth=Depends(require_read_access),
@@ -71,7 +71,7 @@ def search_kits(
     tag: list[str] | None = Query(default=None),
     skip: int = 0,
     limit: int = Query(default=settings.api_page_size_default, le=settings.api_page_size_max),
-    sort: str = "created_at",
+    sort: str = "activity_at",
     order: str = "desc",
     db: Session = Depends(get_db),
     _auth=Depends(require_read_access),
@@ -127,7 +127,10 @@ def put_kit(
     if not kit:
         raise HTTPException(status_code=404, detail="Kit not found")
 
+    should_touch_activity = payload.build_status is not None and payload.build_status != kit.build_status
     update_kit(kit, payload)
+    if should_touch_activity:
+        touch_kit_activity(kit)
     if payload.tag_ids is not None:
         kit.tags = get_tags_by_ids(db, payload.tag_ids)
 
@@ -187,9 +190,11 @@ def post_timeline(
     db: Session = Depends(get_db),
     _auth=Depends(require_write_access),
 ) -> BuildLogRead:
-    if not get_kit(db, kit_id):
+    kit = get_kit(db, kit_id)
+    if not kit:
         raise HTTPException(status_code=404, detail="Kit not found")
     item = create_for_kit(db, kit_id, payload)
+    touch_kit_activity(kit)
     db.commit()
     db.refresh(item)
     return item

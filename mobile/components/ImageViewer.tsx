@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -6,13 +6,15 @@ import {
   Image,
   TouchableOpacity,
   ScrollView,
-  Dimensions,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  useWindowDimensions,
   StyleSheet,
   ViewStyle,
   TextStyle,
   ImageStyle,
 } from "react-native";
-import { api, API_BASE_URL } from "../lib/api/client";
+import { api, API_BASE_URL, authenticatedImageSource } from "../lib/api/client";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -32,6 +34,9 @@ interface ImageViewerProps {
 // ---------------------------------------------------------------------------
 
 function resolveThumbnailUrl(asset: any): string {
+  if (asset.external_source === "immich" && asset.external_asset_id) {
+    return api.getImmichThumbUrl(asset.external_asset_id);
+  }
   if (asset.thumbnail_path || asset.thumbnail_url) {
     return `${API_BASE_URL}/assets/${asset.id}/thumbnail`;
   }
@@ -69,7 +74,9 @@ const colors = {
   danger: "#8d2b2b",
 };
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const THUMB_SIZE = 52;
+const THUMB_GAP = 8;
+const THUMB_STRIP_PADDING = 12;
 
 // ---------------------------------------------------------------------------
 // ImageViewer
@@ -83,20 +90,85 @@ export default function ImageViewer({
   onSetCover,
   onNavigate,
 }: ImageViewerProps) {
+  const { width: pageWidth } = useWindowDimensions();
+  const pagerRef = useRef<ScrollView | null>(null);
+  const thumbnailStripRef = useRef<ScrollView | null>(null);
+  const didInitialScrollRef = useRef(false);
+  const syncedIndexRef = useRef(currentIndex);
   const currentAsset = images[currentIndex];
   const isCover = currentAsset?.id != null && currentAsset.id === coverId;
-  const hasPrev = currentIndex > 0;
-  const hasNext = currentIndex < images.length - 1;
 
-  const handlePrev = () => {
-    if (hasPrev) onNavigate(currentIndex - 1);
-  };
+  useEffect(() => {
+    if (!pagerRef.current || images.length === 0) return;
+    if (didInitialScrollRef.current && currentIndex === syncedIndexRef.current) {
+      return;
+    }
+    syncedIndexRef.current = currentIndex;
+    didInitialScrollRef.current = true;
+    requestAnimationFrame(() => {
+      pagerRef.current?.scrollTo({
+        x: currentIndex * pageWidth,
+        animated: false,
+      });
+    });
+  }, [currentIndex, images.length, pageWidth]);
 
-  const handleNext = () => {
-    if (hasNext) onNavigate(currentIndex + 1);
+  useEffect(() => {
+    if (!thumbnailStripRef.current || images.length <= 1 || pageWidth <= 0) {
+      return;
+    }
+
+    const itemWidth = THUMB_SIZE + THUMB_GAP;
+    const centeredOffset =
+      currentIndex * itemWidth -
+      (pageWidth - THUMB_SIZE) / 2 +
+      THUMB_STRIP_PADDING;
+    const maxOffset = Math.max(
+      0,
+      images.length * itemWidth - THUMB_GAP + THUMB_STRIP_PADDING * 2 - pageWidth
+    );
+
+    thumbnailStripRef.current.scrollTo({
+      x: Math.max(0, Math.min(centeredOffset, maxOffset)),
+      animated: true,
+    });
+  }, [currentIndex, images.length, pageWidth]);
+
+  const navigateTo = (index: number, animated = true) => {
+    const nextIndex = Math.max(0, Math.min(index, images.length - 1));
+    if (nextIndex === currentIndex) return;
+    syncedIndexRef.current = nextIndex;
+    pagerRef.current?.scrollTo({
+      x: nextIndex * pageWidth,
+      animated,
+    });
+    onNavigate(nextIndex);
   };
 
   const filename = currentAsset?.original_filename || "image";
+
+  const handlePageSettled = (
+    event: NativeSyntheticEvent<NativeScrollEvent>
+  ) => {
+    if (pageWidth <= 0) return;
+    const nextIndex = Math.round(event.nativeEvent.contentOffset.x / pageWidth);
+    const clampedIndex = Math.max(0, Math.min(nextIndex, images.length - 1));
+    const delta = clampedIndex - currentIndex;
+    const settledIndex =
+      Math.abs(delta) > 1 ? currentIndex + Math.sign(delta) : clampedIndex;
+
+    if (settledIndex !== clampedIndex) {
+      pagerRef.current?.scrollTo({
+        x: settledIndex * pageWidth,
+        animated: true,
+      });
+    }
+
+    if (settledIndex !== currentIndex) {
+      syncedIndexRef.current = settledIndex;
+      onNavigate(settledIndex);
+    }
+  };
 
   return (
     <Modal
@@ -118,46 +190,40 @@ export default function ImageViewer({
 
         {/* ---- Image area ---- */}
         <View style={styles.imageArea}>
-          {/* Prev button */}
-          {hasPrev ? (
-            <TouchableOpacity
-              style={[styles.navButton, styles.navLeft]}
-              onPress={handlePrev}
-              activeOpacity={0.6}
-            >
-              <Text style={styles.navArrow}>{"‹"}</Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={[styles.navButton, styles.navPlaceholder]} />
-          )}
-
-          {/* Tappable backdrop around image to close */}
-          <TouchableOpacity
-            style={styles.imageWrapper}
-            activeOpacity={1}
-            onPress={onClose}
+          <ScrollView
+            ref={pagerRef}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            bounces={false}
+            alwaysBounceHorizontal={false}
+            directionalLockEnabled
+            decelerationRate="fast"
+            disableIntervalMomentum
+            scrollEventThrottle={16}
+            onMomentumScrollEnd={handlePageSettled}
           >
-            {currentAsset ? (
-              <Image
-                source={{ uri: resolveImageUrl(currentAsset) }}
-                style={styles.fullImage}
-                resizeMode="contain"
-              />
-            ) : null}
-          </TouchableOpacity>
-
-          {/* Next button */}
-          {hasNext ? (
-            <TouchableOpacity
-              style={[styles.navButton, styles.navRight]}
-              onPress={handleNext}
-              activeOpacity={0.6}
-            >
-              <Text style={styles.navArrow}>{"›"}</Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={[styles.navButton, styles.navPlaceholder]} />
-          )}
+            {images.map((asset: any, index: number) => (
+              <View key={asset.id ?? index} style={[styles.imagePage, { width: pageWidth }]}>
+                <ScrollView
+                  style={styles.zoomScroll}
+                  contentContainerStyle={styles.zoomContent}
+                  centerContent
+                  bouncesZoom
+                  minimumZoomScale={1}
+                  maximumZoomScale={4}
+                  showsHorizontalScrollIndicator={false}
+                  showsVerticalScrollIndicator={false}
+                >
+                  <Image
+                    source={authenticatedImageSource(resolveImageUrl(asset))}
+                    style={[styles.fullImage, { width: pageWidth }]}
+                    resizeMode="contain"
+                  />
+                </ScrollView>
+              </View>
+            ))}
+          </ScrollView>
         </View>
 
         {/* ---- Toolbar ---- */}
@@ -182,6 +248,7 @@ export default function ImageViewer({
         {images.length > 1 ? (
           <View style={styles.thumbnailStrip}>
             <ScrollView
+              ref={thumbnailStripRef}
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.thumbnailStripInner}
@@ -195,11 +262,11 @@ export default function ImageViewer({
                       styles.thumbWrap,
                       isActive && styles.thumbWrapActive,
                     ]}
-                    onPress={() => onNavigate(index)}
+                    onPress={() => navigateTo(index)}
                     activeOpacity={0.8}
                   >
                     <Image
-                      source={{ uri: resolveThumbUrl(asset) }}
+                      source={authenticatedImageSource(resolveThumbUrl(asset))}
                       style={styles.thumbImage}
                       resizeMode="cover"
                     />
@@ -247,41 +314,22 @@ const styles = StyleSheet.create({
   // Image area
   imageArea: {
     flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
+    position: "relative",
   } as ViewStyle,
-  imageWrapper: {
+  imagePage: {
     flex: 1,
+  } as ViewStyle,
+  zoomScroll: {
+    flex: 1,
+  } as ViewStyle,
+  zoomContent: {
+    flexGrow: 1,
     alignItems: "center",
     justifyContent: "center",
   } as ViewStyle,
   fullImage: {
-    width: SCREEN_WIDTH,
     height: "100%",
   } as ImageStyle,
-
-  // Nav buttons
-  navButton: {
-    width: 48,
-    height: 60,
-    alignItems: "center",
-    justifyContent: "center",
-  } as ViewStyle,
-  navLeft: {
-    paddingRight: 4,
-  } as ViewStyle,
-  navRight: {
-    paddingLeft: 4,
-  } as ViewStyle,
-  navPlaceholder: {
-    opacity: 0,
-  } as ViewStyle,
-  navArrow: {
-    fontSize: 42,
-    fontWeight: "300",
-    color: "rgba(255,255,255,0.85)",
-    lineHeight: 48,
-  } as TextStyle,
 
   // Toolbar
   toolbar: {

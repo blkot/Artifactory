@@ -153,10 +153,12 @@ export default function KitWorkspacePage({
     }
   }
 
-  async function removeLink(linkId) {
+  async function removeLink(link) {
     if (!kitId) return;
+    const label = link?.title || "this link";
+    if (!window.confirm(`Delete "${label}" from this kit?`)) return;
     try {
-      await api.deleteLink(linkId);
+      await api.deleteLink(link.id);
       const allLinks = await api.getLinks(Number(kitId));
       setLinks(allLinks || []);
     } catch (err) {
@@ -177,10 +179,12 @@ export default function KitWorkspacePage({
     }
   }
 
-  async function removeAsset(assetId) {
+  async function removeAsset(asset) {
     if (!kitId) return;
+    const label = asset?.original_filename || "this asset";
+    if (!window.confirm(`Delete "${label}" from this kit? This cannot be undone.`)) return;
     try {
-      await api.deleteAsset(assetId);
+      await api.deleteAsset(asset.id);
       const rows = await api.getAssets({ kitId: Number(kitId), skip: 0, limit: 50 });
       setAssets(rows.items || []);
     } catch (err) {
@@ -622,7 +626,7 @@ export default function KitWorkspacePage({
                           <button
                             type="button"
                             className="btn-danger file-preview-delete"
-                            onClick={() => removeAsset(asset.id)}
+                            onClick={() => removeAsset(asset)}
                           >
                             Delete
                           </button>
@@ -645,7 +649,7 @@ export default function KitWorkspacePage({
                                 <button
                                   type="button"
                                   className="btn-danger"
-                                  onClick={() => removeAsset(asset.id)}
+                                  onClick={() => removeAsset(asset)}
                                 >
                                   Delete
                                 </button>
@@ -773,7 +777,7 @@ export default function KitWorkspacePage({
                     <td>{link.title}</td>
                     <td>{link.category}</td>
                     <td><a href={link.url} target="_blank" rel="noreferrer">Open</a></td>
-                    <td><button type="button" className="btn-danger" onClick={() => removeLink(link.id)}>Delete</button></td>
+                    <td><button type="button" className="btn-danger" onClick={() => removeLink(link)}>Delete</button></td>
                   </tr>
                 ))}
               </tbody>

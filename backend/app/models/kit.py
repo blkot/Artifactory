@@ -15,6 +15,7 @@ class Kit(Base):
         Index("ix_kits_series", "series"),
         Index("ix_kits_build_status", "build_status"),
         Index("ix_kits_scale", "scale"),
+        Index("ix_kits_activity_at", "activity_at"),
     )
 
     id = Column(Integer, primary_key=True, index=True)
@@ -31,6 +32,7 @@ class Kit(Base):
     thumbnail_asset_id = Column(Integer, ForeignKey("assets.id", use_alter=True), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    activity_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     assets = relationship("Asset", back_populates="kit", cascade="all, delete-orphan", foreign_keys="[Asset.kit_id]")
     links = relationship("Link", back_populates="kit", cascade="all, delete-orphan")

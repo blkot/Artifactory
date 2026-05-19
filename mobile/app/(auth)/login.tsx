@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
 import { router } from "expo-router";
-import * as SecureStore from "expo-secure-store";
-import { api, setAuthToken } from "../../lib/api/client";
+import { api, setAuthToken, setRefreshToken } from "../../lib/api/client";
 
 export default function LoginScreen() {
   const [username, setUsername] = useState("");
@@ -17,7 +16,7 @@ export default function LoginScreen() {
       const result = await api.login(username, password);
       await setAuthToken(result.access_token);
       if (result.refresh_token) {
-        await SecureStore.setItemAsync("artifactory_refresh_token", result.refresh_token);
+        await setRefreshToken(result.refresh_token);
       }
       router.replace("/(tabs)/dashboard");
     } catch (err: any) {

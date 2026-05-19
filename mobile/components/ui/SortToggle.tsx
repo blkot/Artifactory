@@ -36,18 +36,18 @@ export default function SortToggle({ value, onChange }: SortToggleProps) {
       <TouchableOpacity
         style={[styles.btn, isNewest && styles.btnActive]}
         onPress={() =>
-          onChange({ sort: "created_at", order: "desc" })
+          onChange({ sort: "activity_at", order: "desc" })
         }
         activeOpacity={0.7}
       >
         <Text style={[styles.btnText, isNewest && styles.btnTextActive]}>
-          Newest
+          Recent
         </Text>
       </TouchableOpacity>
       <TouchableOpacity
         style={[styles.btn, !isNewest && styles.btnActive]}
         onPress={() =>
-          onChange({ sort: "created_at", order: "asc" })
+          onChange({ sort: "activity_at", order: "asc" })
         }
         activeOpacity={0.7}
       >

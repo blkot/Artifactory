@@ -23,12 +23,12 @@ export default function DashboardPage({ kits, kitPreviewMap, stats, kitSort, onS
           <button
             type="button"
             className={kitSort?.order === "desc" ? "sort-btn active" : "sort-btn"}
-            onClick={() => onSortChange({ sort: "created_at", order: "desc" })}
-          >Newest</button>
+            onClick={() => onSortChange({ sort: "activity_at", order: "desc" })}
+          >Recent</button>
           <button
             type="button"
             className={kitSort?.order === "asc" ? "sort-btn active" : "sort-btn"}
-            onClick={() => onSortChange({ sort: "created_at", order: "asc" })}
+            onClick={() => onSortChange({ sort: "activity_at", order: "asc" })}
           >Oldest</button>
         </div>
       ) : null}

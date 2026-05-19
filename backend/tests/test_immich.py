@@ -57,6 +57,9 @@ def test_create_external_immich_asset(client, auth_headers):
     assert data["external_thumbnail_url"] == "http://immich/api/assets/abc-123/thumbnail"
     assert data["file_path"] in (None, "")
 
+    file_resp = client.get(f"/api/v1/assets/{data['id']}/file", headers=auth_headers)
+    assert file_resp.status_code == 404
+
 
 def test_immich_service_error_returns_502(client, auth_headers):
     with patch("app.api.v1.endpoints.immich.ImmichService") as MockService:

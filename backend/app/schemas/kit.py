@@ -119,6 +119,7 @@ class KitRead(BaseModel):
     build_status: BuildStatus
     created_at: datetime
     updated_at: datetime
+    activity_at: datetime
     tags: list[TagRead] = Field(default_factory=list)
     thumbnail_asset_id: int | None = None
 

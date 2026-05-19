@@ -56,7 +56,7 @@ export default function App() {
   const [kitFacetOptions, setKitFacetOptions] = useState({ brand: [], series: [], scale: [] });
   const [stats, setStats] = useState(null);
   const [kitFilters, setKitFilters] = useState(EMPTY_KIT_FILTERS);
-  const [kitSort, setKitSort] = useState({ sort: "created_at", order: "desc" });
+  const [kitSort, setKitSort] = useState({ sort: "activity_at", order: "desc" });
   const [kitPage, setKitPage] = useState(1);
   const [kitTotal, setKitTotal] = useState(0);
   const [kitsLoadingMore, setKitsLoadingMore] = useState(false);

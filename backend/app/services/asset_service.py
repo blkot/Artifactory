@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.api.exceptions import AssetUploadException, FileTooLargeException, InvalidFileTypeException
 from app.core.config import get_settings
+from app.crud.kit import touch_kit_activity
 from app.models.asset import Asset
 from app.models.enums import AssetType
 from app.models.kit import Kit
@@ -54,6 +55,7 @@ class AssetService:
                 external_thumbnail_url=external_thumbnail_url,
             )
             self.db.add(asset)
+            touch_kit_activity(kit)
             self.db.commit()
             self.db.refresh(asset)
             return asset
@@ -92,6 +94,7 @@ class AssetService:
             is_external_reference=is_external_reference,
         )
         self.db.add(asset)
+        touch_kit_activity(kit)
         self.db.commit()
         self.db.refresh(asset)
         return asset

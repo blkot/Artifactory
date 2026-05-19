@@ -5,13 +5,13 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  SafeAreaView,
   StyleSheet,
   ActivityIndicator,
   Alert,
   ViewStyle,
   TextStyle,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "../../lib/api/client";
 import Button from "../../components/ui/Button";
 import Tag from "../../components/ui/Tag";
@@ -257,21 +257,34 @@ export default function FilterManagementScreen() {
   }, [newValue, selectedField]);
 
   const handleDelete = useCallback(
-    async (value: string) => {
-      setDeleting(value);
-      try {
-        await api.deleteFilterValue(selectedField, value);
-        setFilterValues((prev) => ({
-          ...prev,
-          [selectedField]: (prev[selectedField] || []).filter(
-            (v) => v !== value,
-          ),
-        }));
-      } catch (err: any) {
-        Alert.alert("Error", err?.message || "Failed to delete value");
-      } finally {
-        setDeleting(null);
-      }
+    (value: string) => {
+      Alert.alert(
+        "Delete filter value?",
+        `This will permanently remove "${value}" from ${selectedField}.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Delete",
+            style: "destructive",
+            onPress: async () => {
+              setDeleting(value);
+              try {
+                await api.deleteFilterValue(selectedField, value);
+                setFilterValues((prev) => ({
+                  ...prev,
+                  [selectedField]: (prev[selectedField] || []).filter(
+                    (v) => v !== value,
+                  ),
+                }));
+              } catch (err: any) {
+                Alert.alert("Error", err?.message || "Failed to delete value");
+              } finally {
+                setDeleting(null);
+              }
+            },
+          },
+        ],
+      );
     },
     [selectedField],
   );

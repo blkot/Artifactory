@@ -4,7 +4,7 @@ export const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
 
 const TOKEN_STORAGE_KEY = "artifactory_access_token";
-const REFRESH_TOKEN_STORAGE_KEY = "artifactory_refresh_token";
+export const REFRESH_TOKEN_STORAGE_KEY = "artifactory_refresh_token";
 
 let authToken: string | null = null;
 let refreshPromise: Promise<string> | null = null;
@@ -42,27 +42,107 @@ export async function setAuthToken(token: string | null) {
   }
 }
 
+export async function setRefreshToken(token: string | null) {
+  if (token) {
+    await SecureStore.setItemAsync(REFRESH_TOKEN_STORAGE_KEY, token);
+  } else {
+    await SecureStore.deleteItemAsync(REFRESH_TOKEN_STORAGE_KEY);
+  }
+}
+
+export function getAuthHeaders(): Record<string, string> {
+  return authToken ? { Authorization: `Bearer ${authToken}` } : {};
+}
+
+export function authenticatedImageSource(uri: string) {
+  const headers = getAuthHeaders();
+  return Object.keys(headers).length > 0 ? { uri, headers } : { uri };
+}
+
 async function parseBody(response: Response) {
   const contentType = response.headers.get("content-type") || "";
   if (!contentType.includes("application/json")) return null;
   return response.json().catch(() => null);
 }
 
-export async function request(path: string, options: RequestInit = {}) {
-  const headers: Record<string, string> = {
-    ...((options.headers as Record<string, string>) || {}),
-  };
+function headersToRecord(headersInit: HeadersInit | undefined): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (!headersInit) return headers;
+
+  if (typeof Headers !== "undefined" && headersInit instanceof Headers) {
+    headersInit.forEach((value, key) => {
+      headers[key] = value;
+    });
+    return headers;
+  }
+
+  if (Array.isArray(headersInit)) {
+    headersInit.forEach(([key, value]) => {
+      headers[key] = value;
+    });
+    return headers;
+  }
+
+  return { ...(headersInit as Record<string, string>) };
+}
+
+function hasHeader(headers: Record<string, string>, name: string): boolean {
+  const target = name.toLowerCase();
+  return Object.keys(headers).some((key) => key.toLowerCase() === target);
+}
+
+function buildHeaders(options: RequestInit, token: string | null = authToken) {
+  const headers = headersToRecord(options.headers);
 
   if (
-    !headers["Content-Type"] &&
+    !hasHeader(headers, "Content-Type") &&
     options.body &&
     !(options.body instanceof FormData)
   ) {
     headers["Content-Type"] = "application/json";
   }
-  if (!headers.Authorization && authToken) {
-    headers.Authorization = `Bearer ${authToken}`;
+  if (!hasHeader(headers, "Authorization") && token) {
+    headers.Authorization = `Bearer ${token}`;
   }
+
+  return headers;
+}
+
+async function apiErrorFromResponse(response: Response) {
+  const data = await parseBody(response);
+  const retryAfter = response.headers.get("Retry-After");
+  return new ApiError(
+    data?.message || data?.detail || "Request failed",
+    response.status,
+    data?.details || null,
+    retryAfter ? Number(retryAfter) : null
+  );
+}
+
+async function refreshAccessToken(refreshToken: string) {
+  if (!refreshPromise) {
+    refreshPromise = (async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refresh_token: refreshToken }),
+        });
+        if (!res.ok) throw await apiErrorFromResponse(res);
+        const payload = await res.json();
+        await setAuthToken(payload.access_token);
+        return payload.access_token;
+      } finally {
+        refreshPromise = null;
+      }
+    })();
+  }
+
+  return refreshPromise;
+}
+
+export async function request(path: string, options: RequestInit = {}) {
+  const headers = buildHeaders(options);
 
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
@@ -71,76 +151,46 @@ export async function request(path: string, options: RequestInit = {}) {
 
   if (response.status === 204) return null;
 
-  const data = await parseBody(response);
   if (!response.ok) {
-    if (response.status === 401 && !path.startsWith("/auth/refresh")) {
+    if (response.status === 401 && !path.startsWith("/auth/")) {
       const refreshToken = await SecureStore.getItemAsync(
         REFRESH_TOKEN_STORAGE_KEY
       );
       if (refreshToken) {
         try {
-          if (!refreshPromise) {
-            refreshPromise = (async () => {
-              try {
-                const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ refresh_token: refreshToken }),
-                });
-                if (!res.ok) throw new Error("refresh failed");
-                const payload = await res.json();
-                await setAuthToken(payload.access_token);
-                return payload.access_token;
-              } finally {
-                refreshPromise = null;
-              }
-            })();
-          }
-          const newToken = await refreshPromise;
-          const retryHeaders: Record<string, string> = {
-            ...((options.headers as Record<string, string>) || {}),
-          };
-          if (!retryHeaders.Authorization) {
-            retryHeaders.Authorization = `Bearer ${newToken}`;
-          }
+          const newToken = await refreshAccessToken(refreshToken);
+          const retryHeaders = buildHeaders(options, newToken);
           const retryResponse = await fetch(`${API_BASE_URL}${path}`, {
             ...options,
             headers: retryHeaders,
           });
           if (retryResponse.status === 204) return null;
-          const retryData = await parseBody(retryResponse);
           if (!retryResponse.ok) {
-            throw new ApiError(
-              retryData?.message || "Request failed",
-              retryResponse.status,
-              retryData?.details || null,
-              null
-            );
+            throw await apiErrorFromResponse(retryResponse);
           }
+          const retryData = await parseBody(retryResponse);
           return retryData;
-        } catch (_) {}
+        } catch (err: any) {
+          if (err instanceof ApiError && err.status !== 401) {
+            throw err;
+          }
+        }
       }
 
       await setAuthToken(null);
-      await SecureStore.deleteItemAsync(REFRESH_TOKEN_STORAGE_KEY);
+      await setRefreshToken(null);
     }
 
-    const retryAfter = response.headers.get("Retry-After");
-    throw new ApiError(
-      data?.message || data?.detail || "Request failed",
-      response.status,
-      data?.details || null,
-      retryAfter ? Number(retryAfter) : null
-    );
+    throw await apiErrorFromResponse(response);
   }
-  return data;
+  return parseBody(response);
 }
 
 export const api = {
   getKits: ({
     skip = 0,
     limit = 20,
-    sort = "created_at",
+    sort = "activity_at",
     order = "desc",
   } = {}) => {
     const params = new URLSearchParams();

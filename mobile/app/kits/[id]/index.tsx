@@ -6,18 +6,24 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  SafeAreaView,
   TextInput,
   Image,
   Modal,
+  Alert,
   ViewStyle,
   TextStyle,
   ImageStyle,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, router } from "expo-router";
-import { api, API_BASE_URL } from "../../../lib/api/client";
+import {
+  api,
+  API_BASE_URL,
+  authenticatedImageSource,
+} from "../../../lib/api/client";
 import { GRADES, BUILD_STATUS, LINK_CATEGORIES } from "../../../lib/constants";
 import { buildKitEditForm, toUserMessage } from "../../../lib/utils";
+import { normalizeLinkUrl, parseSharedLink } from "../../../lib/linkParser";
 import Button from "../../../components/ui/Button";
 import Tag from "../../../components/ui/Tag";
 import Input from "../../../components/ui/Input";
@@ -79,6 +85,9 @@ const TAG_COLOR_PRESETS = [
 // ---------------------------------------------------------------------------
 
 function resolveThumbnailUrl(asset: any): string {
+  if (asset.external_source === "immich" && asset.external_asset_id) {
+    return api.getImmichThumbUrl(asset.external_asset_id);
+  }
   if (asset.thumbnail_path || asset.thumbnail_url) {
     return `${API_BASE_URL}/assets/${asset.id}/thumbnail`;
   }
@@ -148,7 +157,10 @@ function ChipSelector({
 // ---------------------------------------------------------------------------
 
 export default function KitDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, tab: requestedTab } = useLocalSearchParams<{
+    id: string;
+    tab?: string;
+  }>();
   const kitId = Number(id);
 
   // Data
@@ -156,7 +168,11 @@ export default function KitDetailScreen() {
   const [assets, setAssets] = useState<any[]>([]);
   const [links, setLinks] = useState<any[]>([]);
   const [timeline, setTimeline] = useState<any[]>([]);
-  const [tab, setTab] = useState("overview");
+  const [tab, setTab] = useState(
+    ["overview", "assets", "links", "timeline"].includes(String(requestedTab))
+      ? String(requestedTab)
+      : "overview"
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -174,6 +190,7 @@ export default function KitDetailScreen() {
 
   // Add link
   const [showAddLink, setShowAddLink] = useState(false);
+  const [rawLinkText, setRawLinkText] = useState("");
   const [linkForm, setLinkForm] = useState({
     url: "",
     category: "REVIEW" as string,
@@ -328,6 +345,21 @@ export default function KitDetailScreen() {
     }
   };
 
+  const confirmDeleteAsset = (asset: any) => {
+    Alert.alert(
+      "Delete asset?",
+      `This will permanently remove ${asset.original_filename || "this asset"}.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => handleDeleteAsset(asset.id),
+        },
+      ]
+    );
+  };
+
   const handleSetCover = async (assetId: number) => {
     try {
       const updated = await api.updateKit(kitId, {
@@ -377,6 +409,15 @@ export default function KitDetailScreen() {
 
   const handleAddLink = async () => {
     if (!linkForm.url.trim() || !linkForm.title.trim()) return;
+    const normalizedUrl = normalizeLinkUrl(linkForm.url);
+    const duplicate = links.find(
+      (link) => normalizeLinkUrl(String(link.url)) === normalizedUrl
+    );
+    if (duplicate) {
+      setLinkError("This kit already has that link.");
+      return;
+    }
+
     setLinkAdding(true);
     setLinkError(null);
 
@@ -391,12 +432,26 @@ export default function KitDetailScreen() {
       });
       setLinks((prev) => [...prev, newLink]);
       setLinkForm({ url: "", category: "REVIEW", title: "", notes: "" });
+      setRawLinkText("");
       setShowAddLink(false);
     } catch (err: any) {
       setLinkError(toUserMessage(err));
     } finally {
       setLinkAdding(false);
     }
+  };
+
+  const handleRawLinkTextChange = (value: string) => {
+    setRawLinkText(value);
+    const parsed = parseSharedLink(value);
+    if (!parsed) return;
+    setLinkForm((prev) => ({
+      ...prev,
+      url: parsed.url,
+      title: parsed.title,
+      category: parsed.category,
+      notes: prev.notes || parsed.notes,
+    }));
   };
 
   const handleDeleteLink = async (linkId: number) => {
@@ -406,6 +461,21 @@ export default function KitDetailScreen() {
     } catch {
       // Best-effort
     }
+  };
+
+  const confirmDeleteLink = (link: any) => {
+    Alert.alert(
+      "Delete link?",
+      `This will permanently remove ${link.title || "this link"}.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => handleDeleteLink(link.id),
+        },
+      ]
+    );
   };
 
   // -----------------------------------------------------------------------
@@ -744,7 +814,7 @@ export default function KitDetailScreen() {
             activeOpacity={0.8}
           >
             <Image
-              source={{ uri: resolveThumbnailUrl(coverAsset) }}
+              source={authenticatedImageSource(resolveThumbnailUrl(coverAsset))}
               style={styles.coverImage}
               resizeMode="cover"
             />
@@ -764,7 +834,7 @@ export default function KitDetailScreen() {
             activeOpacity={0.8}
           >
             <Image
-              source={{ uri: resolveThumbnailUrl(imageAssets[0]) }}
+              source={authenticatedImageSource(resolveThumbnailUrl(imageAssets[0]))}
               style={styles.coverImage}
               resizeMode="cover"
             />
@@ -804,7 +874,7 @@ export default function KitDetailScreen() {
                     activeOpacity={0.8}
                   >
                     <Image
-                      source={{ uri: resolveThumbnailUrl(asset) }}
+                      source={authenticatedImageSource(resolveThumbnailUrl(asset))}
                       style={styles.thumbnail}
                       resizeMode="cover"
                     />
@@ -939,7 +1009,7 @@ export default function KitDetailScreen() {
                         activeOpacity={0.8}
                       >
                         <Image
-                          source={{ uri: resolveThumbnailUrl(asset) }}
+                          source={authenticatedImageSource(resolveThumbnailUrl(asset))}
                           style={styles.assetThumbnail}
                           resizeMode="cover"
                         />
@@ -971,7 +1041,7 @@ export default function KitDetailScreen() {
                         </TouchableOpacity>
                       ) : null}
                       <TouchableOpacity
-                        onPress={() => handleDeleteAsset(asset.id)}
+                        onPress={() => confirmDeleteAsset(asset)}
                         activeOpacity={0.7}
                       >
                         <Text style={styles.deleteAssetText}>Delete</Text>
@@ -1008,6 +1078,13 @@ export default function KitDetailScreen() {
             </TouchableOpacity>
           </View>
           {linkError ? <ErrorBanner message={linkError} /> : null}
+          <Input
+            label="Shared Text"
+            value={rawLinkText}
+            onChangeText={handleRawLinkTextChange}
+            placeholder="Paste Xiaohongshu/Bilibili share text..."
+            multiline
+          />
           <Input
             label="URL"
             value={linkForm.url}
@@ -1078,13 +1155,30 @@ export default function KitDetailScreen() {
                   </Text>
                 ) : null}
               </View>
-              <TouchableOpacity
-                onPress={() => handleDeleteLink(link.id)}
-                activeOpacity={0.7}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Text style={styles.deleteAssetText}>Delete</Text>
-              </TouchableOpacity>
+              <View style={styles.linkActions}>
+                <TouchableOpacity
+                  onPress={() =>
+                    router.push({
+                      pathname: "/links/webview",
+                      params: {
+                        url: String(link.url),
+                        title: String(link.title || "Link"),
+                      },
+                    })
+                  }
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Text style={styles.assetActionText}>Open</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => confirmDeleteLink(link)}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Text style={styles.deleteAssetText}>Delete</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         ))
@@ -1197,6 +1291,13 @@ export default function KitDetailScreen() {
     <SafeAreaView style={styles.safe}>
       {/* Kit header */}
       <View style={styles.kitHeader}>
+        <TouchableOpacity
+          style={styles.backToKitsButton}
+          onPress={() => router.replace("/(tabs)/kits")}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.backToKitsText}>{"‹ Kits"}</Text>
+        </TouchableOpacity>
         <Text style={styles.kitName} numberOfLines={2}>
           {kit.name}
         </Text>
@@ -1276,6 +1377,17 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 4,
   } as ViewStyle,
+  backToKitsButton: {
+    alignSelf: "flex-start",
+    minHeight: 36,
+    justifyContent: "center",
+    marginBottom: 4,
+  } as ViewStyle,
+  backToKitsText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: colors.accent,
+  } as TextStyle,
   kitName: {
     fontSize: 22,
     fontWeight: "700",
@@ -1601,6 +1713,10 @@ const styles = StyleSheet.create({
   listCardBody: {
     flex: 1,
     marginRight: 12,
+  } as ViewStyle,
+  linkActions: {
+    alignItems: "flex-end",
+    gap: 10,
   } as ViewStyle,
   listCardTitle: {
     fontSize: 15,

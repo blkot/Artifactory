@@ -2,9 +2,9 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_read_access, require_write_access
-from app.api.exceptions import KitNotFoundException, LinkNotFoundException
-from app.crud.kit import get_kit
-from app.crud.link import create_link, delete_link, get_link, list_links, update_link
+from app.api.exceptions import ConflictException, KitNotFoundException, LinkNotFoundException
+from app.crud.kit import get_kit, touch_kit_activity
+from app.crud.link import create_link, delete_link, find_duplicate_link, get_link, list_links, update_link
 from app.crud.tag import get_tags_by_ids
 from app.db import get_db
 from app.schemas.link import LinkCreate, LinkRead, LinkUpdate
@@ -40,11 +40,20 @@ def post_link(
     db: Session = Depends(get_db),
     _auth=Depends(require_write_access),
 ) -> LinkRead:
-    if not get_kit(db, payload.kit_id):
+    kit = get_kit(db, payload.kit_id)
+    if not kit:
         raise KitNotFoundException(payload.kit_id)
+
+    duplicate = find_duplicate_link(db, payload.kit_id, str(payload.url))
+    if duplicate:
+        raise ConflictException(
+            "This kit already has that link.",
+            details={"link_id": duplicate.id, "kit_id": payload.kit_id},
+        )
 
     link = create_link(db, payload)
     link.tags = get_tags_by_ids(db, payload.tag_ids)
+    touch_kit_activity(kit)
     db.commit()
     db.refresh(link)
     return link

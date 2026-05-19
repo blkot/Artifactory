@@ -4,6 +4,7 @@ import {
   Text,
   Modal,
   FlatList,
+  ScrollView,
   TouchableOpacity,
   Image,
   ActivityIndicator,
@@ -13,7 +14,7 @@ import {
   TextStyle,
   ImageStyle,
 } from "react-native";
-import { api } from "../lib/api/client";
+import { api, authenticatedImageSource } from "../lib/api/client";
 import ErrorBanner from "./ui/ErrorBanner";
 import Button from "./ui/Button";
 import Tag from "./ui/Tag";
@@ -241,39 +242,45 @@ export default function ImmichPicker({
         </TouchableOpacity>
       </View>
 
-      <Text style={styles.sheetHint}>
-        Choose one or more tags to search for images in your Immich library.
-      </Text>
+      <ScrollView
+        style={styles.sheetScroll}
+        contentContainerStyle={styles.sheetScrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <Text style={styles.sheetHint}>
+          Choose one or more tags to search for images in your Immich library.
+        </Text>
 
-      {tagsError ? (
-        <View style={styles.errorWrap}>
-          <ErrorBanner message={tagsError} />
-        </View>
-      ) : null}
+        {tagsError ? (
+          <View style={styles.errorWrap}>
+            <ErrorBanner message={tagsError} />
+          </View>
+        ) : null}
 
-      {tagsLoading ? (
-        <View style={styles.loadingWrap}>
-          <ActivityIndicator size="small" color={colors.muted} />
-          <Text style={styles.loadingText}>Loading tags...</Text>
-        </View>
-      ) : tags.length === 0 ? (
-        <View style={styles.emptyWrap}>
-          <Text style={styles.emptyText}>
-            No tags found in your Immich library.
-          </Text>
-        </View>
-      ) : (
-        <View style={styles.tagsGrid}>
-          {tags.map((tag) => (
-            <Tag
-              key={tag.id}
-              label={tag.name || tag.value}
-              active={selectedTagIds.has(tag.id)}
-              onPress={() => toggleTag(tag.id)}
-            />
-          ))}
-        </View>
-      )}
+        {tagsLoading ? (
+          <View style={styles.loadingWrap}>
+            <ActivityIndicator size="small" color={colors.muted} />
+            <Text style={styles.loadingText}>Loading tags...</Text>
+          </View>
+        ) : tags.length === 0 ? (
+          <View style={styles.emptyWrap}>
+            <Text style={styles.emptyText}>
+              No tags found in your Immich library.
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.tagsGrid}>
+            {tags.map((tag) => (
+              <Tag
+                key={tag.id}
+                label={tag.name || tag.value}
+                active={selectedTagIds.has(tag.id)}
+                onPress={() => toggleTag(tag.id)}
+              />
+            ))}
+          </View>
+        )}
+      </ScrollView>
 
       <View style={styles.sheetFooter}>
         <Text style={styles.selectionCount}>
@@ -303,7 +310,7 @@ export default function ImmichPicker({
         activeOpacity={0.8}
       >
         <Image
-          source={{ uri: api.getImmichThumbUrl(item.id) }}
+          source={authenticatedImageSource(api.getImmichThumbUrl(item.id))}
           style={styles.assetThumb}
           resizeMode="cover"
         />
@@ -451,12 +458,19 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
     maxHeight: "85%",
     minHeight: "50%",
+    overflow: "hidden",
   } as ViewStyle,
 
   // Sheet content
   sheetContent: {
     flex: 1,
     paddingTop: 16,
+  } as ViewStyle,
+  sheetScroll: {
+    flex: 1,
+  } as ViewStyle,
+  sheetScrollContent: {
+    paddingBottom: 16,
   } as ViewStyle,
 
   // Header
@@ -501,7 +515,6 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 8,
     paddingHorizontal: 20,
-    paddingBottom: 16,
   } as ViewStyle,
 
   // Select bar

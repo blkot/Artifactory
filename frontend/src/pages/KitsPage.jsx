@@ -50,8 +50,8 @@ export default function KitsPage({
         />
         {onSortChange ? (
           <div className="sort-toggle">
-            <button type="button" className={kitSort?.order === "desc" ? "sort-btn active" : "sort-btn"} onClick={() => onSortChange({ sort: "created_at", order: "desc" })}>Newest</button>
-            <button type="button" className={kitSort?.order === "asc" ? "sort-btn active" : "sort-btn"} onClick={() => onSortChange({ sort: "created_at", order: "asc" })}>Oldest</button>
+            <button type="button" className={kitSort?.order === "desc" ? "sort-btn active" : "sort-btn"} onClick={() => onSortChange({ sort: "activity_at", order: "desc" })}>Recent</button>
+            <button type="button" className={kitSort?.order === "asc" ? "sort-btn active" : "sort-btn"} onClick={() => onSortChange({ sort: "activity_at", order: "asc" })}>Oldest</button>
           </div>
         ) : null}
         <article className="panel kits-banner-panel">

@@ -1,4 +1,61 @@
+import time
+
 from app.core.config import get_settings
+
+
+def test_activity_at_bumps_for_status_change_but_not_tags(client) -> None:
+    first_tag = client.post("/api/v1/tags", json={"name": "activity-tag", "color": "#123456"})
+    assert first_tag.status_code == 201
+
+    first = client.post(
+        "/api/v1/kits",
+        json={
+            "name": "Activity First",
+            "grade": "RG",
+            "series": "UC",
+            "brand": "Bandai",
+            "scale": "1/144",
+            "build_status": "NEW",
+            "tag_ids": [],
+        },
+    )
+    assert first.status_code == 201
+    first_payload = first.json()
+    first_id = first_payload["id"]
+    initial_activity_at = first_payload["activity_at"]
+
+    second = client.post(
+        "/api/v1/kits",
+        json={
+            "name": "Activity Second",
+            "grade": "MG",
+            "series": "Seed",
+            "brand": "Bandai",
+            "scale": "1/100",
+            "build_status": "NEW",
+            "tag_ids": [],
+        },
+    )
+    assert second.status_code == 201
+
+    tag_update = client.put(
+        f"/api/v1/kits/{first_id}",
+        json={"tag_ids": [first_tag.json()["id"]]},
+    )
+    assert tag_update.status_code == 200
+    assert tag_update.json()["activity_at"] == initial_activity_at
+
+    time.sleep(0.001)
+    status_update = client.put(
+        f"/api/v1/kits/{first_id}",
+        json={"build_status": "IN_PROGRESS"},
+    )
+    assert status_update.status_code == 200
+    assert status_update.json()["activity_at"] != initial_activity_at
+
+    list_response = client.get("/api/v1/kits")
+    assert list_response.status_code == 200
+    assert list_response.json()["items"][0]["id"] == first_id
 
 
 def test_kits_crud_and_search(client) -> None:

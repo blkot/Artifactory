@@ -1,3 +1,6 @@
+import time
+
+
 def _create_kit(client):
     response = client.post(
         "/api/v1/kits",
@@ -17,10 +20,12 @@ def _create_kit(client):
 
 def test_links_crud_flow(client) -> None:
     kit_id = _create_kit(client)
+    initial_activity_at = client.get(f"/api/v1/kits/{kit_id}").json()["activity_at"]
     tag_response = client.post("/api/v1/tags", json={"name": "review", "color": "#abcdef"})
     assert tag_response.status_code == 201
     tag_id = tag_response.json()["id"]
 
+    time.sleep(0.001)
     create_response = client.post(
         "/api/v1/links",
         json={
@@ -34,6 +39,7 @@ def test_links_crud_flow(client) -> None:
     )
     assert create_response.status_code == 201
     link_id = create_response.json()["id"]
+    assert client.get(f"/api/v1/kits/{kit_id}").json()["activity_at"] != initial_activity_at
 
     list_response = client.get("/api/v1/links")
     assert list_response.status_code == 200
@@ -64,3 +70,26 @@ def test_link_with_unknown_kit_returns_not_found(client) -> None:
     )
     assert response.status_code == 404
     assert response.json()["error"] == "kit_not_found"
+
+
+def test_duplicate_link_for_same_kit_returns_conflict(client) -> None:
+    kit_id = _create_kit(client)
+    payload = {
+        "kit_id": kit_id,
+        "url": "https://example.com/review",
+        "category": "REVIEW",
+        "title": "Detailed review",
+        "tag_ids": [],
+    }
+
+    create_response = client.post("/api/v1/links", json=payload)
+    assert create_response.status_code == 201
+
+    duplicate_response = client.post(
+        "/api/v1/links",
+        json={**payload, "url": "https://example.com/review/"},
+    )
+
+    assert duplicate_response.status_code == 409
+    assert duplicate_response.json()["error"] == "conflict"
+    assert duplicate_response.json()["details"]["link_id"] == create_response.json()["id"]

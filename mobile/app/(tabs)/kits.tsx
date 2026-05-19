@@ -7,12 +7,12 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  SafeAreaView,
   TextInput,
   ViewStyle,
   TextStyle,
   ImageStyle,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { api, API_BASE_URL } from "../../lib/api/client";
 import {
@@ -66,6 +66,9 @@ const IMAGE_ASSET_TYPES = [
 ];
 
 function resolveThumbnailUrl(asset: any): string {
+  if (asset.external_source === "immich" && asset.external_asset_id) {
+    return api.getImmichThumbUrl(asset.external_asset_id);
+  }
   if (asset.thumbnail_path || asset.thumbnail_url) {
     return `${API_BASE_URL}/assets/${asset.id}/thumbnail`;
   }
@@ -120,6 +123,7 @@ export default function KitsScreen() {
   );
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [page, setPage] = useState(1);
@@ -130,7 +134,7 @@ export default function KitsScreen() {
 
   // Sort
   const [sort, setSort] = useState<SortValue>({
-    sort: "created_at",
+    sort: "activity_at",
     order: "desc",
   });
 
@@ -154,11 +158,15 @@ export default function KitsScreen() {
       currentPage: number,
       currentFilters: typeof EMPTY_KIT_FILTERS,
       currentSort: SortValue,
-      append = false
+      append = false,
+      showRefreshControl = false
     ) => {
       if (append) {
         setLoadingMore(true);
         loadingMoreRef.current = true;
+      } else if (showRefreshControl) {
+        setRefreshing(true);
+        setError(null);
       } else {
         setLoading(true);
         setError(null);
@@ -201,6 +209,7 @@ export default function KitsScreen() {
         }
       } finally {
         setLoading(false);
+        setRefreshing(false);
         setLoadingMore(false);
         loadingMoreRef.current = false;
       }
@@ -335,7 +344,7 @@ export default function KitsScreen() {
 
   const handleRefresh = useCallback(() => {
     setPage(1);
-    loadKits(1, filters, sort, false);
+    loadKits(1, filters, sort, false, true);
   }, [filters, sort, loadKits]);
 
   // -----------------------------------------------------------------------
@@ -506,13 +515,22 @@ export default function KitsScreen() {
         <View>
           <Text style={styles.title}>Kit Inventory</Text>
         </View>
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={() => router.push("/kits/new")}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.addButtonText}>+ Add Kit</Text>
-        </TouchableOpacity>
+        <View style={styles.topActions}>
+          <TouchableOpacity
+            style={styles.importLinkButton}
+            onPress={() => router.push("/links/import")}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.importLinkText}>Link</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => router.push("/kits/new")}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.addButtonText}>+ Kit</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Error banner */}
@@ -545,7 +563,7 @@ export default function KitsScreen() {
           onEndReachedThreshold={0.5}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.listContent}
-          refreshing={loading && kits.length > 0}
+          refreshing={refreshing}
           onRefresh={handleRefresh}
         />
       )}
@@ -588,8 +606,26 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accent,
     borderRadius: 10,
     paddingVertical: 9,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
   } as ViewStyle,
+  topActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  } as ViewStyle,
+  importLinkButton: {
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: 10,
+    paddingVertical: 9,
+    paddingHorizontal: 13,
+    backgroundColor: colors.surface,
+  } as ViewStyle,
+  importLinkText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: colors.ink,
+  } as TextStyle,
   addButtonText: {
     fontSize: 15,
     fontWeight: "600",
