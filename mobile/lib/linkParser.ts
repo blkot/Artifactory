@@ -55,6 +55,39 @@ function titleBeforeUrl(candidate: LinkCandidate): string {
   return cleanTitle(candidate.rawText.slice(0, candidate.urlStart));
 }
 
+function bilibiliParts(candidate: LinkCandidate): {
+  title: string;
+  markers: string[];
+} {
+  const beforeUrl = titleBeforeUrl(candidate);
+  const bilibiliMatch = beforeUrl.match(/^【([\s\S]*?)[-—_ ]*哔哩哔哩】([\s\S]*)$/i);
+
+  if (!bilibiliMatch) {
+    return {
+      title: cleanTitle(beforeUrl.replace(/[-—_ ]*哔哩哔哩$/i, "")),
+      markers: [],
+    };
+  }
+
+  const [, rawTitle, rawMetadata] = bilibiliMatch;
+  const markers = Array.from(rawMetadata.matchAll(/【([^】]+)】/g)).map(
+    (match) => match[1]
+  );
+  return {
+    title: cleanTitle(rawTitle),
+    markers,
+  };
+}
+
+function bilibiliTitle(candidate: LinkCandidate): string {
+  return bilibiliParts(candidate).title;
+}
+
+function bilibiliNotes(candidate: LinkCandidate): string {
+  const markers = bilibiliParts(candidate).markers;
+  return ["Source: Bilibili", ...markers].join("\n");
+}
+
 const SOURCE_PARSERS: SourceParser[] = [
   {
     id: "xiaohongshu",
@@ -73,7 +106,8 @@ const SOURCE_PARSERS: SourceParser[] = [
     category: "TUTORIAL",
     fallbackTitle: "Bilibili Link",
     matchesHost: (host) => host.includes("bilibili.com") || host === "b23.tv",
-    extractTitle: titleBeforeUrl,
+    extractTitle: bilibiliTitle,
+    extractNotes: bilibiliNotes,
   },
 ];
 

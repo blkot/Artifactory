@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -11,7 +11,7 @@ import {
   TextStyle,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import * as Clipboard from "expo-clipboard";
 import { api } from "../../lib/api/client";
 import { LINK_CATEGORIES } from "../../lib/constants";
@@ -30,7 +30,16 @@ const colors = {
   danger: "#8d2b2b",
 };
 
+function firstParam(value: string | string[] | undefined): string {
+  if (Array.isArray(value)) return value[0] ?? "";
+  return value ?? "";
+}
+
 export default function LinkImportScreen() {
+  const { sharedText, sharedUrl } = useLocalSearchParams<{
+    sharedText?: string | string[];
+    sharedUrl?: string | string[];
+  }>();
   const [rawText, setRawText] = useState("");
   const [url, setUrl] = useState("");
   const [title, setTitle] = useState("");
@@ -42,6 +51,22 @@ export default function LinkImportScreen() {
   const [loadingKits, setLoadingKits] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const initialSharedPayload = useMemo(() => {
+    return [firstParam(sharedText), firstParam(sharedUrl)]
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .join(" ");
+  }, [sharedText, sharedUrl]);
+
+  const applyRawText = useCallback((text: string) => {
+    setRawText(text);
+    const parsed = parseSharedLink(text);
+    if (!parsed) return;
+    setUrl(parsed.url);
+    setTitle(parsed.title);
+    setCategory(parsed.category);
+    setNotes(parsed.notes);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -67,6 +92,11 @@ export default function LinkImportScreen() {
   }, []);
 
   useEffect(() => {
+    if (initialSharedPayload) {
+      applyRawText(initialSharedPayload);
+      return;
+    }
+
     (async () => {
       try {
         const text = await Clipboard.getStringAsync();
@@ -75,17 +105,7 @@ export default function LinkImportScreen() {
         // Clipboard can be denied by iOS privacy settings. Manual paste still works.
       }
     })();
-  }, []);
-
-  const applyRawText = (text: string) => {
-    setRawText(text);
-    const parsed = parseSharedLink(text);
-    if (!parsed) return;
-    setUrl(parsed.url);
-    setTitle(parsed.title);
-    setCategory(parsed.category);
-    setNotes(parsed.notes);
-  };
+  }, [applyRawText, initialSharedPayload]);
 
   const filteredKits = useMemo(() => {
     const q = kitQuery.trim().toLowerCase();

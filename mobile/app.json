@@ -14,9 +14,15 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.blkot.artifactory",
+      "buildNumber": "1",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
+      "package": "com.blkot.artifactory",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -26,6 +32,47 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      [
+        "expo-share-extension",
+        {
+          "height": 220,
+          "activationRules": [
+            {
+              "type": "text"
+            },
+            {
+              "type": "url",
+              "max": 1
+            }
+          ]
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "build": {
+          "experimental": {
+            "ios": {
+              "appExtensions": [
+                {
+                  "targetName": "ArtifactoryShareExtension",
+                  "bundleIdentifier": "com.blkot.artifactory.ShareExtension",
+                  "entitlements": {
+                    "com.apple.security.application-groups": [
+                      "group.com.blkot.artifactory"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "projectId": "2ecd7451-e690-4732-a981-2a4e845dbb21"
+      },
+      "appleApplicationGroup": "group.com.blkot.artifactory"
+    },
+    "owner": "blkot"
   }
 }
