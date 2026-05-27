@@ -17,6 +17,8 @@ class Link(Base):
     category = Column(Enum(LinkCategory), nullable=False)
     title = Column(String(200), nullable=False)
     notes = Column(String(500), nullable=True)
+    source = Column(String(32), nullable=True)
+    thumbnail_path = Column(String(255), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     kit = relationship("Kit", back_populates="links")

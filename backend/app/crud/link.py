@@ -21,6 +21,23 @@ def _normalize_url(value: str) -> str:
     return urlunsplit((scheme, netloc, path, parts.query, ""))
 
 
+def infer_link_source(value: str) -> str | None:
+    try:
+        host = urlsplit(value.strip()).netloc.lower().removeprefix("www.")
+    except ValueError:
+        return None
+    if host == "b23.tv" or host.endswith(".b23.tv") or "bilibili.com" in host:
+        return "bilibili"
+    if host == "xhslink.com" or host.endswith(".xhslink.com") or "xiaohongshu.com" in host:
+        return "xiaohongshu"
+    return None
+
+
+def _normalize_source(value: str | None) -> str | None:
+    normalized = (value or "").strip().lower()
+    return normalized or None
+
+
 def list_links(db: Session, kit_id: int | None = None) -> list[Link]:
     query = db.query(Link)
     if kit_id is not None:
@@ -42,6 +59,7 @@ def create_link(db: Session, payload: LinkCreate) -> Link:
     data = payload.model_dump(exclude={"tag_ids"})
     if "url" in data and data["url"] is not None:
         data["url"] = str(data["url"])
+    data["source"] = _normalize_source(data.get("source")) or infer_link_source(data["url"])
     link = Link(**data)
     db.add(link)
     db.flush()
@@ -49,10 +67,15 @@ def create_link(db: Session, payload: LinkCreate) -> Link:
 
 
 def update_link(link: Link, payload: LinkUpdate) -> Link:
-    for key, value in payload.model_dump(exclude_unset=True, exclude={"tag_ids"}).items():
+    data = payload.model_dump(exclude_unset=True, exclude={"tag_ids"})
+    for key, value in data.items():
         if key == "url" and value is not None:
             value = str(value)
+        if key == "source":
+            value = _normalize_source(value)
         setattr(link, key, value)
+    if "url" in data and "source" not in data and not link.source:
+        link.source = infer_link_source(link.url)
     return link
 
 

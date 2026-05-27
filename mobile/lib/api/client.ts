@@ -2,6 +2,7 @@ import * as SecureStore from "expo-secure-store";
 
 export const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
+const API_ROOT_URL = API_BASE_URL.replace(/\/api\/v1\/?$/, "");
 
 const TOKEN_STORAGE_KEY = "artifactory_access_token";
 export const REFRESH_TOKEN_STORAGE_KEY = "artifactory_refresh_token";
@@ -187,6 +188,21 @@ export async function request(path: string, options: RequestInit = {}) {
 }
 
 export const api = {
+  checkBackendReady: async () => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
+    try {
+      const response = await fetch(`${API_ROOT_URL}/health/ready`, {
+        signal: controller.signal,
+      });
+      return response.ok;
+    } catch {
+      return false;
+    } finally {
+      clearTimeout(timeout);
+    }
+  },
+
   getKits: ({
     skip = 0,
     limit = 20,
@@ -269,6 +285,9 @@ export const api = {
   },
   createLink: (payload: any) =>
     request("/links", { method: "POST", body: JSON.stringify(payload) }),
+  uploadLinkThumbnail: (id: number, formData: FormData) =>
+    request(`/links/${id}/thumbnail`, { method: "POST", body: formData }),
+  linkThumbnailUrl: (id: number) => `${API_BASE_URL}/links/${id}/thumbnail`,
   deleteLink: (id: number) => request(`/links/${id}`, { method: "DELETE" }),
 
   getTimeline: (kitId: number) => request(`/kits/${kitId}/timeline`),

@@ -3,7 +3,7 @@
     "name": "Artifactory",
     "slug": "artifactory-mobile",
     "scheme": "artifactory",
-    "version": "1.0.0",
+    "version": "0.3.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -16,9 +16,19 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.blkot.artifactory",
-      "buildNumber": "1",
+      "buildNumber": "3",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
+      },
+      "privacyManifests": {
+        "NSPrivacyAccessedAPITypes": [
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryFileTimestamp",
+            "NSPrivacyAccessedAPITypeReasons": [
+              "C617.1"
+            ]
+          }
+        ]
       }
     },
     "android": {
@@ -45,10 +55,32 @@
             {
               "type": "url",
               "max": 1
+            },
+            {
+              "type": "file",
+              "max": 1
+            },
+            {
+              "type": "image",
+              "max": 1
+            },
+            {
+              "type": "video",
+              "max": 1
             }
           ]
         }
-      ]
+      ],
+      "./plugins/withNativeShareExtension",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Artifactory to choose photos from your library as kit assets.",
+          "cameraPermission": "Allow Artifactory to take photos and save them as kit assets.",
+          "microphonePermission": false
+        }
+      ],
+      "expo-sqlite"
     ],
     "extra": {
       "eas": {

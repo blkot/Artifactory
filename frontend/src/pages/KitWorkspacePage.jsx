@@ -8,6 +8,8 @@ import ImageViewer from "../components/ImageViewer";
 import ImmichPicker from "../components/ImmichPicker";
 import immichIcon from "../assets/immich-icon.svg";
 
+const ASSET_IMAGE_PLACEHOLDER = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='640' height='480' viewBox='0 0 640 480'%3E%3Crect fill='%23ece3d7' width='640' height='480'/%3E%3Cpath d='M158 318l87-104 65 78 43-52 129 154H118z' fill='%23d3c9bc'/%3E%3Ccircle cx='432' cy='156' r='42' fill='%23d3c9bc'/%3E%3Ctext x='320' y='408' text-anchor='middle' font-size='26' fill='%235d6872' font-family='Arial, sans-serif'%3EImage unavailable%3C/text%3E%3Ctext x='320' y='440' text-anchor='middle' font-size='18' fill='%238a9198' font-family='Arial, sans-serif'%3ERetry when the backend or source is online%3C/text%3E%3C/svg%3E";
+
 function assetUrl(path) {
     if (path && path.startsWith("/api/v1/")) {
         return `${API_BASE_URL}${path.slice(7)}`;
@@ -15,8 +17,10 @@ function assetUrl(path) {
     return path;
 }
 
-function onImmichImgError(e) {
-    e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='45' viewBox='0 0 60 45'%3E%3Crect fill='%23ece3d7' width='60' height='45' rx='4'/%3E%3Ctext x='30' y='26' text-anchor='middle' font-size='10' fill='%238a9198' font-family='monospace'%3Eimmich%3C/text%3E%3Ctext x='30' y='38' text-anchor='middle' font-size='8' fill='%238a9198' font-family='monospace'%3Eoffline%3C/text%3E%3C/svg%3E";
+function onAssetImgError(e) {
+    if (e.currentTarget.dataset.fallbackApplied === "true") return;
+    e.currentTarget.dataset.fallbackApplied = "true";
+    e.currentTarget.src = ASSET_IMAGE_PLACEHOLDER;
 }
 
 function getAssetDisplayUrl(asset) {
@@ -51,6 +55,8 @@ export default function KitWorkspacePage({
   const [links, setLinks] = useState([]);
   const [timeline, setTimeline] = useState([]);
   const [error, setError] = useState("");
+  const [backendStatus, setBackendStatus] = useState("unknown");
+  const [reloadTick, setReloadTick] = useState(0);
   const [linkForm, setLinkForm] = useState({
     url: "",
     category: "REVIEW",
@@ -122,8 +128,13 @@ export default function KitWorkspacePage({
         setAssets(assetRes.items || []);
         setLinks(linkRes || []);
         setTimeline(timelineRes || []);
+        setBackendStatus("online");
+        setError("");
       } catch (err) {
-        if (active) setError(toUserMessage(err));
+        if (!active) return;
+        setError(toUserMessage(err));
+        const ready = await api.checkBackendReady();
+        if (active) setBackendStatus(ready ? "online" : "offline");
       }
     }
 
@@ -131,7 +142,7 @@ export default function KitWorkspacePage({
     return () => {
       active = false;
     };
-  }, [kitId, token]);
+  }, [kitId, token, reloadTick]);
 
   function toggleLinkTag(id) {
     setLinkForm((prev) => ({
@@ -325,7 +336,19 @@ export default function KitWorkspacePage({
   if (!kit) {
     return (
       <section className="page">
-      <AppHeader title="Kit Workspace" subtitle="Loading kit details..." error={error} />
+        <AppHeader
+          title="Kit Workspace"
+          subtitle={error ? "Unable to load kit details." : "Loading kit details..."}
+          error={error}
+        />
+        {backendStatus === "offline" ? (
+          <div className="error-banner workspace-status-banner">
+            <span>Backend is unavailable. Web assets are shown only after the backend is reachable.</span>
+            <button type="button" onClick={() => setReloadTick((value) => value + 1)}>
+              Retry
+            </button>
+          </div>
+        ) : null}
       </section>
     );
   }
@@ -337,6 +360,14 @@ export default function KitWorkspacePage({
         subtitle={`${kit.grade} · ${kit.series} · ${String(kit.build_status).replace("BuildStatus.", "")}`}
         error={error}
       />
+      {backendStatus === "offline" ? (
+        <div className="error-banner workspace-status-banner">
+          <span>Backend is unavailable. Asset lists and images may fail until the service is back online.</span>
+          <button type="button" onClick={() => setReloadTick((value) => value + 1)}>
+            Retry
+          </button>
+        </div>
+      ) : null}
 
       <div className="tab-row">
         {["overview", "assets", "links", "timeline"].map((tabName) => (
@@ -494,7 +525,7 @@ export default function KitWorkspacePage({
                   const idx = imageAssets.findIndex(a => a.id === coverAsset.id);
                   setViewerOpen(true);
                   setViewerIndex(idx >= 0 ? idx : 0);
-                }} style={{ cursor: "pointer" }} />
+                }} onError={onAssetImgError} style={{ cursor: "pointer" }} />
               ) : (
                 <div className="kit-card-placeholder">
                   <span>{kit.grade}</span>
@@ -523,7 +554,7 @@ export default function KitWorkspacePage({
                       }}
                     >
                       <div className="kit-gallery-thumb-wrap">
-                        <img src={getAssetDisplayUrl(asset)} alt={asset.original_filename} onError={onImmichImgError} />
+                        <img src={getAssetDisplayUrl(asset)} alt={asset.original_filename} onError={onAssetImgError} />
                         {asset.external_source === "immich" ? (
                           <img className="asset-source-badge" src={immichIcon} alt="Immich" />
                         ) : (
@@ -554,8 +585,18 @@ export default function KitWorkspacePage({
                     <tbody>
                       {links.slice(0, 5).map((link) => (
                         <tr key={link.id}>
-                          <td><a href={link.url} target="_blank" rel="noreferrer">{link.title}</a></td>
-                          <td><span className="muted">{link.category}</span></td>
+                          <td>
+                            <div className="link-title-cell">
+                              {link.thumbnail_url || link.thumbnail_path ? (
+                                <img className="link-thumb" src={api.linkThumbnailUrl(link.id)} alt="" />
+                              ) : null}
+                              <a href={link.url} target="_blank" rel="noreferrer">{link.title}</a>
+                            </div>
+                          </td>
+                          <td>
+                            {link.source ? <span className="source-chip">{link.source}</span> : null}
+                            <span className="muted">{link.category}</span>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -615,7 +656,7 @@ export default function KitWorkspacePage({
                       {sectionAssets.map((asset) => (
                         <div key={asset.id} className="file-preview-item">
                           <div className="kit-gallery-thumb-wrap">
-                            <img src={getAssetDisplayUrl(asset)} alt={asset.original_filename} onError={onImmichImgError} />
+                            <img src={getAssetDisplayUrl(asset)} alt={asset.original_filename} onError={onAssetImgError} />
                             {asset.external_source === "immich" ? (
                               <img className="asset-source-badge" src={immichIcon} alt="Immich" />
                             ) : (
@@ -769,12 +810,20 @@ export default function KitWorkspacePage({
           <div className="table-wrap">
             <table>
               <thead>
-                <tr><th>Title</th><th>Category</th><th>URL</th><th>Action</th></tr>
+                <tr><th>Title</th><th>Source</th><th>Category</th><th>URL</th><th>Action</th></tr>
               </thead>
               <tbody>
                 {links.map((link) => (
                   <tr key={link.id}>
-                    <td>{link.title}</td>
+                    <td>
+                      <div className="link-title-cell">
+                        {link.thumbnail_url || link.thumbnail_path ? (
+                          <img className="link-thumb" src={api.linkThumbnailUrl(link.id)} alt="" />
+                        ) : null}
+                        <span>{link.title}</span>
+                      </div>
+                    </td>
+                    <td>{link.source ? <span className="source-chip">{link.source}</span> : <span className="muted">-</span>}</td>
                     <td>{link.category}</td>
                     <td><a href={link.url} target="_blank" rel="noreferrer">Open</a></td>
                     <td><button type="button" className="btn-danger" onClick={() => removeLink(link)}>Delete</button></td>

@@ -1,4 +1,5 @@
 const URL_RE = /https?:\/\/[^\s"'<>，。！？、]+/i;
+const IMAGE_FILE_RE = /file:\/\/[^\s"'<>，。！？、]+\.(?:jpg|jpeg|png|webp|gif)(?:\?[^\s"'<>]*)?/i;
 
 export interface ParsedSharedLink {
   rawText: string;
@@ -6,7 +7,9 @@ export interface ParsedSharedLink {
   title: string;
   category: string;
   provider: string;
+  source: string;
   notes: string;
+  thumbnailUri?: string;
 }
 
 export function normalizeLinkUrl(value: string): string {
@@ -161,6 +164,8 @@ export function parseSharedLink(text: string): ParsedSharedLink | null {
     title: title.slice(0, 200),
     category: parser.category,
     provider: parser.provider,
+    source: parser.id,
     notes,
+    thumbnailUri: rawText.match(IMAGE_FILE_RE)?.[0],
   };
 }

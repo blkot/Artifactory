@@ -6,6 +6,8 @@ cd "$ROOT"
 printf "[mobile-check] TypeScript...\n"
 npx -p typescript tsc --noEmit
 
+node scripts/check-env-config.mjs
+
 printf "[mobile-check] iOS bundle...\n"
 npx expo export --platform ios --dump-sourcemap >/dev/null 2>&1
 rm -rf dist

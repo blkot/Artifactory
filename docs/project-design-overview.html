@@ -1,0 +1,931 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Artifactory Visual Design Map</title>
+  <style>
+    :root {
+      --bg: #f4f0e8;
+      --paper: #fffdf8;
+      --ink: #202326;
+      --muted: #667078;
+      --line: #d8d0c3;
+      --soft: #f0e7dc;
+      --accent: #b75d2a;
+      --accent-2: #2f6b56;
+      --blue: #315f89;
+      --red: #963a34;
+      --shadow: 0 18px 48px rgba(35, 28, 20, 0.12);
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    h1, h2, h3, p { margin-top: 0; }
+    h1, h2, h3 { letter-spacing: 0; }
+    p { color: var(--muted); }
+    code {
+      padding: 2px 5px;
+      border-radius: 5px;
+      background: #eee6dc;
+      font: 0.9em "SFMono-Regular", Consolas, monospace;
+    }
+
+    .page {
+      width: min(1240px, calc(100% - 28px));
+      margin: 0 auto;
+      padding: 18px 0 60px;
+    }
+
+    .hero {
+      min-height: 360px;
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+      gap: 26px;
+      align-items: center;
+      padding: clamp(24px, 5vw, 58px);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background:
+        linear-gradient(135deg, rgba(255, 253, 248, 0.88), rgba(255, 253, 248, 0.62)),
+        radial-gradient(circle at 78% 34%, rgba(183, 93, 42, 0.26), transparent 32%),
+        linear-gradient(120deg, #26303a, #c7b095);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .hero h1 {
+      max-width: 760px;
+      margin-bottom: 14px;
+      font-size: clamp(2.5rem, 6vw, 5rem);
+      line-height: 0.96;
+    }
+
+    .hero p {
+      max-width: 620px;
+      margin-bottom: 0;
+      font-size: 1.06rem;
+      color: #3f464c;
+    }
+
+    .hero-visual {
+      min-height: 260px;
+      display: grid;
+      place-items: center;
+      position: relative;
+    }
+
+    .orbit {
+      width: min(100%, 440px);
+      aspect-ratio: 1;
+      position: relative;
+      border: 1px solid rgba(255, 255, 255, 0.62);
+      border-radius: 50%;
+    }
+
+    .orbit::before,
+    .orbit::after {
+      content: "";
+      position: absolute;
+      inset: 14%;
+      border: 1px solid rgba(32, 35, 38, 0.18);
+      border-radius: 50%;
+    }
+
+    .orbit::after {
+      inset: 29%;
+      background: rgba(255, 253, 248, 0.64);
+    }
+
+    .orbit-node {
+      position: absolute;
+      z-index: 1;
+      width: 112px;
+      min-height: 70px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      padding: 10px;
+      border: 1px solid rgba(32, 35, 38, 0.16);
+      border-radius: 10px;
+      background: rgba(255, 253, 248, 0.92);
+      box-shadow: 0 10px 25px rgba(28, 22, 16, 0.12);
+      font-weight: 800;
+    }
+
+    .orbit-node small {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .orbit-node.mobile { left: 4%; top: 42%; }
+    .orbit-node.web { right: 5%; top: 14%; }
+    .orbit-node.backend { right: 6%; bottom: 9%; }
+    .orbit-node.cache { left: 26%; bottom: 4%; }
+
+    .nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 9px;
+      margin: 16px 0 22px;
+    }
+
+    .nav a {
+      text-decoration: none;
+      color: var(--ink);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255, 253, 248, 0.78);
+      padding: 7px 12px;
+      font-size: 0.88rem;
+      font-weight: 700;
+    }
+
+    section {
+      margin-top: 22px;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--paper);
+      box-shadow: 0 8px 28px rgba(35, 28, 20, 0.07);
+    }
+
+    .section-head {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 18px;
+    }
+
+    .section-head h2 {
+      margin-bottom: 0;
+      font-size: clamp(1.45rem, 3vw, 2.1rem);
+    }
+
+    .section-head p {
+      max-width: 540px;
+      margin-bottom: 0;
+      text-align: right;
+    }
+
+    .graph-shell {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+    }
+
+    .graph {
+      display: block;
+      min-width: 980px;
+      width: 100%;
+      height: auto;
+    }
+
+    .graph text {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      fill: var(--ink);
+    }
+
+    .graph .node {
+      fill: #fffdf8;
+      stroke: var(--line);
+      stroke-width: 1.4;
+    }
+
+    .graph .mobile { fill: #f4dfcf; stroke: #d29268; }
+    .graph .backend { fill: #e6eef6; stroke: #9ab6d0; }
+    .graph .store { fill: #e6f0ea; stroke: #9bc2af; }
+    .graph .web { fill: #f1eadd; stroke: #cbb99d; }
+
+    .graph .edge {
+      fill: none;
+      stroke: #776657;
+      stroke-width: 2.2;
+      marker-end: url(#arrow);
+    }
+
+    .graph .edge-soft {
+      stroke-dasharray: 7 7;
+      stroke: #a09285;
+    }
+
+    .graph .title {
+      font-size: 16px;
+      font-weight: 850;
+    }
+
+    .graph .label {
+      font-size: 12.5px;
+      fill: var(--muted);
+    }
+
+    .swimlane {
+      display: grid;
+      grid-template-columns: 160px repeat(5, minmax(130px, 1fr));
+      gap: 10px;
+      min-width: 940px;
+    }
+
+    .lane-label {
+      display: grid;
+      place-items: center start;
+      padding: 12px;
+      border-radius: 8px;
+      background: var(--soft);
+      font-weight: 800;
+    }
+
+    .lane-cell {
+      min-height: 82px;
+      display: grid;
+      align-content: center;
+      gap: 5px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      position: relative;
+    }
+
+    .lane-cell.active {
+      border-color: #d29268;
+      background: #fbefe5;
+    }
+
+    .lane-cell.sync {
+      border-color: #9bc2af;
+      background: #edf6f1;
+    }
+
+    .lane-cell strong { font-size: 0.92rem; }
+    .lane-cell span { color: var(--muted); font-size: 0.78rem; }
+
+    .lane-cell.arrow::after {
+      content: "";
+      position: absolute;
+      right: -12px;
+      top: 50%;
+      width: 13px;
+      border-top: 2px solid var(--accent);
+      z-index: 2;
+    }
+
+    .visual-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      align-items: stretch;
+    }
+
+    .mock-card {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+      padding: 14px;
+    }
+
+    .mock-card h3 {
+      margin-bottom: 10px;
+      font-size: 0.98rem;
+    }
+
+    .phone {
+      width: min(100%, 245px);
+      margin: 0 auto;
+      border: 10px solid #222;
+      border-radius: 32px;
+      background: #111;
+      box-shadow: 0 18px 34px rgba(28, 22, 16, 0.18);
+      overflow: hidden;
+    }
+
+    .phone-screen {
+      min-height: 430px;
+      padding: 12px;
+      border-radius: 22px;
+      background: #f8f4ed;
+    }
+
+    .phone-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      font-size: 0.74rem;
+      color: var(--muted);
+    }
+
+    .screen-title {
+      margin-bottom: 10px;
+      font-size: 1.05rem;
+      font-weight: 850;
+    }
+
+    .tabs {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 5px;
+      margin-bottom: 10px;
+    }
+
+    .tab {
+      border-radius: 999px;
+      padding: 5px;
+      background: #eee6dc;
+      text-align: center;
+      font-size: 0.68rem;
+      font-weight: 800;
+      color: var(--muted);
+    }
+
+    .tab.on {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .asset-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+    }
+
+    .asset-tile {
+      min-height: 86px;
+      border-radius: 10px;
+      background:
+        linear-gradient(135deg, rgba(255,255,255,0.2), rgba(0,0,0,0.05)),
+        linear-gradient(145deg, #cfc0ad, #7c8790);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .asset-tile:nth-child(2) { background: linear-gradient(145deg, #d4b28f, #6f523f); }
+    .asset-tile:nth-child(3) { background: linear-gradient(145deg, #b7c5d0, #4e6172); }
+    .asset-tile:nth-child(4) { background: linear-gradient(145deg, #e2d4c0, #967354); }
+
+    .badge {
+      position: absolute;
+      left: 6px;
+      bottom: 6px;
+      padding: 3px 6px;
+      border-radius: 999px;
+      background: rgba(255, 253, 248, 0.92);
+      color: var(--blue);
+      font-size: 0.62rem;
+      font-weight: 850;
+    }
+
+    .badge.fail { color: var(--red); }
+    .badge.sync { color: var(--accent-2); }
+
+    .capture-panel {
+      display: grid;
+      gap: 8px;
+    }
+
+    .preview-img {
+      height: 180px;
+      border-radius: 12px;
+      background:
+        linear-gradient(135deg, rgba(255,255,255,0.2), rgba(0,0,0,0.08)),
+        linear-gradient(145deg, #d5c3ad, #59656e);
+    }
+
+    .select-row,
+    .btn-row {
+      display: flex;
+      gap: 7px;
+      align-items: center;
+    }
+
+    .select-pill,
+    .mock-btn {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 7px 9px;
+      background: #fff;
+      font-size: 0.72rem;
+      font-weight: 750;
+    }
+
+    .mock-btn.primary {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .viewer {
+      height: 430px;
+      display: grid;
+      grid-template-rows: 1fr auto auto;
+      gap: 10px;
+      padding: 12px;
+      border-radius: 18px;
+      background: #1d2023;
+      color: #fff;
+    }
+
+    .viewer-image {
+      border-radius: 12px;
+      background:
+        radial-gradient(circle at 48% 38%, rgba(255,255,255,0.2), transparent 22%),
+        linear-gradient(145deg, #cab69e, #39434d);
+    }
+
+    .viewer-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: #ececec;
+      font-size: 0.72rem;
+    }
+
+    .thumb-strip {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+    }
+
+    .thumb {
+      height: 40px;
+      border: 2px solid transparent;
+      border-radius: 7px;
+      background: #8b7a66;
+    }
+
+    .thumb.on { border-color: #fff; }
+
+    .web-mock {
+      min-height: 430px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #faf8f3;
+      overflow: hidden;
+    }
+
+    .web-bar {
+      display: flex;
+      gap: 6px;
+      padding: 9px 12px;
+      border-bottom: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #d5c9ba;
+    }
+
+    .web-body {
+      padding: 13px;
+    }
+
+    .web-alert {
+      margin-bottom: 12px;
+      border: 1px solid #e4b6ad;
+      border-radius: 8px;
+      padding: 10px;
+      background: #fae9e5;
+      color: var(--red);
+      font-size: 0.78rem;
+      font-weight: 800;
+    }
+
+    .web-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .web-img {
+      aspect-ratio: 4 / 3;
+      display: grid;
+      place-items: center;
+      border: 1px dashed #c7bba8;
+      border-radius: 8px;
+      background: #efe7dc;
+      color: var(--muted);
+      font-size: 0.68rem;
+      font-weight: 800;
+      text-align: center;
+    }
+
+    .ladder {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      align-items: stretch;
+    }
+
+    .ladder-step {
+      min-height: 130px;
+      display: grid;
+      align-content: center;
+      gap: 8px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+      text-align: center;
+      position: relative;
+    }
+
+    .ladder-step:not(:last-child)::after {
+      content: "";
+      position: absolute;
+      right: -11px;
+      top: 50%;
+      width: 12px;
+      border-top: 2px solid var(--accent);
+    }
+
+    .quality {
+      width: 54px;
+      height: 54px;
+      margin: 0 auto;
+      border-radius: 14px;
+      background: linear-gradient(145deg, #dec7ad, #58636b);
+    }
+
+    .quality.q2 { opacity: 0.88; }
+    .quality.q3 { opacity: 0.68; }
+    .quality.q4 { opacity: 0.5; }
+    .quality.q5 { opacity: 0.36; }
+
+    .status-board {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .status-card {
+      min-height: 124px;
+      display: grid;
+      align-content: center;
+      gap: 8px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+      text-align: center;
+    }
+
+    .status-icon {
+      width: 44px;
+      height: 44px;
+      margin: 0 auto;
+      border-radius: 50%;
+      background: #eee6dc;
+      position: relative;
+    }
+
+    .status-icon::after {
+      content: "";
+      position: absolute;
+      inset: 12px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+
+    .status-card:nth-child(2) .status-icon::after { background: var(--blue); }
+    .status-card:nth-child(3) .status-icon::after { background: var(--accent-2); }
+    .status-card:nth-child(4) .status-icon::after { background: var(--red); }
+
+    .footnote {
+      margin: 18px 0 0;
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    @media (max-width: 1060px) {
+      .hero,
+      .visual-grid,
+      .status-board {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .ladder {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .page { width: min(100% - 18px, 1240px); }
+      .hero,
+      .visual-grid,
+      .status-board,
+      .ladder {
+        grid-template-columns: 1fr;
+      }
+
+      section,
+      .hero {
+        padding: 16px;
+      }
+
+      .section-head {
+        display: block;
+      }
+
+      .section-head p {
+        max-width: none;
+        text-align: left;
+        margin-top: 6px;
+      }
+
+      .ladder-step:not(:last-child)::after {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="hero">
+      <div>
+        <h1>Artifactory visual system map</h1>
+        <p>Backend is canonical. Web is backend-first. Mobile is local-first for photo assets and offline image viewing.</p>
+      </div>
+      <div class="hero-visual" aria-hidden="true">
+        <div class="orbit">
+          <div class="orbit-node mobile">Mobile<small>offline first</small></div>
+          <div class="orbit-node web">Web<small>backend first</small></div>
+          <div class="orbit-node backend">Backend<small>source of truth</small></div>
+          <div class="orbit-node cache">Cache<small>local images</small></div>
+        </div>
+      </div>
+    </header>
+
+    <nav class="nav">
+      <a href="#system">System Graph</a>
+      <a href="#flow">Sync Diagram</a>
+      <a href="#ui">UX Mockups</a>
+      <a href="#viewer">Image Ladder</a>
+      <a href="#states">States</a>
+    </nav>
+
+    <section id="system">
+      <div class="section-head">
+        <h2>System Graph</h2>
+        <p>Who owns what, and where data moves.</p>
+      </div>
+      <div class="graph-shell">
+        <svg class="graph" viewBox="0 0 1080 520" role="img" aria-label="Artifactory system architecture graph">
+          <defs>
+            <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+              <path d="M0,0 L0,6 L9,3 z" fill="#776657"></path>
+            </marker>
+          </defs>
+
+          <rect class="node web" x="56" y="68" width="184" height="92" rx="10"></rect>
+          <text class="title" x="148" y="105" text-anchor="middle">Web UI</text>
+          <text class="label" x="148" y="130" text-anchor="middle">synced assets only</text>
+
+          <rect class="node mobile" x="56" y="318" width="184" height="92" rx="10"></rect>
+          <text class="title" x="148" y="355" text-anchor="middle">Mobile App</text>
+          <text class="label" x="148" y="380" text-anchor="middle">local-first capture</text>
+
+          <rect class="node mobile" x="326" y="270" width="190" height="148" rx="10"></rect>
+          <text class="title" x="421" y="312" text-anchor="middle">Local Layer</text>
+          <text class="label" x="421" y="340" text-anchor="middle">SQLite jobs</text>
+          <text class="label" x="421" y="364" text-anchor="middle">original files</text>
+          <text class="label" x="421" y="388" text-anchor="middle">display + thumb cache</text>
+
+          <rect class="node backend" x="612" y="178" width="210" height="130" rx="10"></rect>
+          <text class="title" x="717" y="220" text-anchor="middle">FastAPI Backend</text>
+          <text class="label" x="717" y="248" text-anchor="middle">canonical API</text>
+          <text class="label" x="717" y="272" text-anchor="middle">/health/ready</text>
+
+          <rect class="node store" x="890" y="52" width="150" height="82" rx="10"></rect>
+          <text class="title" x="965" y="86" text-anchor="middle">Database</text>
+          <text class="label" x="965" y="111" text-anchor="middle">kits, links, tags</text>
+
+          <rect class="node store" x="890" y="202" width="150" height="82" rx="10"></rect>
+          <text class="title" x="965" y="236" text-anchor="middle">Asset Files</text>
+          <text class="label" x="965" y="261" text-anchor="middle">original + thumb</text>
+
+          <rect class="node store" x="890" y="352" width="150" height="82" rx="10"></rect>
+          <text class="title" x="965" y="386" text-anchor="middle">Immich</text>
+          <text class="label" x="965" y="411" text-anchor="middle">external media</text>
+
+          <path class="edge" d="M240 114 C372 116, 485 166, 612 218"></path>
+          <text class="label" x="412" y="126" text-anchor="middle">CRUD synced data</text>
+
+          <path class="edge" d="M240 364 L326 344"></path>
+          <text class="label" x="283" y="338" text-anchor="middle">save first</text>
+
+          <path class="edge" d="M516 330 C566 312, 580 282, 612 260"></path>
+          <text class="label" x="558" y="342" text-anchor="middle">foreground sync</text>
+
+          <path class="edge edge-soft" d="M612 288 C520 462, 275 458, 168 410"></path>
+          <text class="label" x="380" y="474" text-anchor="middle">offline viewer fallback</text>
+
+          <path class="edge" d="M822 222 C858 178, 852 105, 890 94"></path>
+          <path class="edge" d="M822 244 L890 244"></path>
+          <path class="edge" d="M822 270 C858 300, 852 372, 890 392"></path>
+        </svg>
+      </div>
+    </section>
+
+    <section id="flow">
+      <div class="section-head">
+        <h2>Offline Sync Diagram</h2>
+        <p>Photo assets are usable before the network succeeds.</p>
+      </div>
+      <div class="graph-shell">
+        <div class="swimlane">
+          <div class="lane-label">User</div>
+          <div class="lane-cell arrow"><strong>Take photo</strong><span>camera or library</span></div>
+          <div class="lane-cell"><strong>Sees asset</strong><span>appears instantly</span></div>
+          <div class="lane-cell"><strong>Leaves app</strong><span>safe to pause</span></div>
+          <div class="lane-cell"><strong>Reopens app</strong><span>sync resumes</span></div>
+          <div class="lane-cell"><strong>Views synced</strong><span>remote asset mapped</span></div>
+
+          <div class="lane-label">Mobile</div>
+          <div class="lane-cell active arrow"><strong>Copy original</strong><span>document storage</span></div>
+          <div class="lane-cell active arrow"><strong>Make cache</strong><span>1600px + 300px</span></div>
+          <div class="lane-cell active"><strong>Queue job</strong><span>SQLite</span></div>
+          <div class="lane-cell sync arrow"><strong>Upload one</strong><span>foreground only</span></div>
+          <div class="lane-cell sync"><strong>Mark synced</strong><span>remote id saved</span></div>
+
+          <div class="lane-label">Backend</div>
+          <div class="lane-cell"><strong>Offline OK</strong><span>no record yet</span></div>
+          <div class="lane-cell"><strong>Health check</strong><span>/health/ready</span></div>
+          <div class="lane-cell"><strong>Accept file</strong><span>POST /assets</span></div>
+          <div class="lane-cell"><strong>Thumbnail</strong><span>canonical preview</span></div>
+          <div class="lane-cell"><strong>Web can see it</strong><span>after sync only</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="ui">
+      <div class="section-head">
+        <h2>UI / UX Demonstration</h2>
+        <p>The intended behavior shown as screens, not prose.</p>
+      </div>
+      <div class="visual-grid">
+        <article class="mock-card">
+          <h3>Mobile asset grid</h3>
+          <div class="phone">
+            <div class="phone-screen">
+              <div class="phone-top"><span>Artifactory</span><span>Online</span></div>
+              <div class="screen-title">MG Sazabi Ver.Ka</div>
+              <div class="tabs"><div class="tab">Overview</div><div class="tab on">Assets</div><div class="tab">Links</div></div>
+              <div class="asset-grid">
+                <div class="asset-tile"><span class="badge sync">Synced</span></div>
+                <div class="asset-tile"><span class="badge">Pending</span></div>
+                <div class="asset-tile"><span class="badge sync">Syncing</span></div>
+                <div class="asset-tile"><span class="badge fail">Failed</span></div>
+              </div>
+              <div class="btn-row" style="margin-top: 12px">
+                <div class="mock-btn primary">Take Photo</div>
+                <div class="mock-btn">Choose</div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="mock-card">
+          <h3>Capture confirmation</h3>
+          <div class="phone">
+            <div class="phone-screen">
+              <div class="phone-top"><span>Save Photo</span><span>Cancel</span></div>
+              <div class="capture-panel">
+                <div class="preview-img"></div>
+                <div class="select-row">
+                  <div class="select-pill">Build Photo</div>
+                  <div class="select-pill">Set cover</div>
+                </div>
+                <div class="select-pill">Description...</div>
+                <div class="mock-btn primary" style="text-align:center">Save locally</div>
+                <div class="select-pill">Uploads when backend is online</div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="mock-card">
+          <h3>Mobile image viewer</h3>
+          <div class="viewer">
+            <div class="viewer-image"></div>
+            <div class="viewer-toolbar">
+              <span>photo_0421.jpg</span>
+              <span>Set as Cover</span>
+            </div>
+            <div class="thumb-strip">
+              <div class="thumb"></div>
+              <div class="thumb on"></div>
+              <div class="thumb"></div>
+              <div class="thumb"></div>
+            </div>
+          </div>
+        </article>
+
+        <article class="mock-card">
+          <h3>Web unavailable state</h3>
+          <div class="web-mock">
+            <div class="web-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+            <div class="web-body">
+              <div class="web-alert">Backend unavailable. Retry when service is online.</div>
+              <div class="web-grid">
+                <div class="web-img">Image unavailable</div>
+                <div class="web-img">Immich offline</div>
+                <div class="web-img">Retry</div>
+                <div class="web-img">Synced only</div>
+                <div class="web-img">No local queue</div>
+                <div class="web-img">Placeholder</div>
+              </div>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section id="viewer">
+      <div class="section-head">
+        <h2>Viewer Source Ladder</h2>
+        <p>Best quality first, offline fallback last.</p>
+      </div>
+      <div class="ladder">
+        <div class="ladder-step">
+          <div class="quality"></div>
+          <strong>Remote original</strong>
+          <span>best quality</span>
+        </div>
+        <div class="ladder-step">
+          <div class="quality q2"></div>
+          <strong>Local display</strong>
+          <span>cached 1600px</span>
+        </div>
+        <div class="ladder-step">
+          <div class="quality q3"></div>
+          <strong>Remote preview</strong>
+          <span>backend or Immich</span>
+        </div>
+        <div class="ladder-step">
+          <div class="quality q4"></div>
+          <strong>Remote thumb</strong>
+          <span>grid quality</span>
+        </div>
+        <div class="ladder-step">
+          <div class="quality q5"></div>
+          <strong>Local thumb</strong>
+          <span>offline floor</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="states">
+      <div class="section-head">
+        <h2>Operational States</h2>
+        <p>What the user should understand at a glance.</p>
+      </div>
+      <div class="status-board">
+        <div class="status-card">
+          <div class="status-icon"></div>
+          <strong>Pending</strong>
+          <span>local only, job queued</span>
+        </div>
+        <div class="status-card">
+          <div class="status-icon"></div>
+          <strong>Syncing</strong>
+          <span>active foreground upload</span>
+        </div>
+        <div class="status-card">
+          <div class="status-icon"></div>
+          <strong>Synced</strong>
+          <span>backend owns canonical asset</span>
+        </div>
+        <div class="status-card">
+          <div class="status-icon"></div>
+          <strong>Failed</strong>
+          <span>files kept, retry available</span>
+        </div>
+      </div>
+      <p class="footnote">
+        Implementation entry points:
+        <code>mobile/app/kits/[id]/index.tsx</code>,
+        <code>mobile/lib/localAssetStore.ts</code>,
+        <code>mobile/lib/imageCache.ts</code>,
+        <code>mobile/lib/syncQueue.ts</code>,
+        <code>frontend/src/pages/KitWorkspacePage.jsx</code>.
+      </p>
+    </section>
+  </main>
+</body>
+</html>

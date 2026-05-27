@@ -1,9 +1,10 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
   Modal,
   Image,
+  Pressable,
   TouchableOpacity,
   ScrollView,
   NativeScrollEvent,
@@ -15,6 +16,8 @@ import {
   ImageStyle,
 } from "react-native";
 import { api, API_BASE_URL, authenticatedImageSource } from "../lib/api/client";
+import { cacheRemoteAssetDerivatives } from "../lib/imageCache";
+import { touchRemoteAssetCache } from "../lib/localAssetStore";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -23,10 +26,11 @@ import { api, API_BASE_URL, authenticatedImageSource } from "../lib/api/client";
 interface ImageViewerProps {
   images: any[];
   currentIndex: number;
-  coverId: number | null;
+  coverId: number | string | null;
   onClose: () => void;
-  onSetCover: (assetId: number) => void;
+  onSetCover: (asset: any) => void;
   onNavigate: (index: number) => void;
+  onAssetCached?: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -34,6 +38,12 @@ interface ImageViewerProps {
 // ---------------------------------------------------------------------------
 
 function resolveThumbnailUrl(asset: any): string {
+  if (asset.isLocalAsset) {
+    return asset.thumbnailLocalUri || asset.displayLocalUri || asset.originalLocalUri;
+  }
+  if (asset.thumbnailLocalUri) {
+    return asset.thumbnailLocalUri;
+  }
   if (asset.external_source === "immich" && asset.external_asset_id) {
     return api.getImmichThumbUrl(asset.external_asset_id);
   }
@@ -44,16 +54,54 @@ function resolveThumbnailUrl(asset: any): string {
 }
 
 function resolveImageUrl(asset: any): string {
+  if (asset.isLocalAsset) {
+    return asset.originalLocalUri || asset.displayLocalUri || asset.thumbnailLocalUri;
+  }
   if (asset.external_source === "immich" && asset.external_asset_id) {
     return api.getImmichOriginalUrl(asset.external_asset_id);
-  }
-  if (asset.thumbnail_path || asset.thumbnail_url) {
-    return `${API_BASE_URL}/assets/${asset.id}/thumbnail`;
   }
   return api.assetFileUrl(asset.id);
 }
 
+function imageQualityCandidates(asset: any): string[] {
+  const candidates: string[] = [];
+
+  if (asset.isLocalAsset) {
+    candidates.push(asset.originalLocalUri);
+    candidates.push(asset.displayLocalUri);
+    candidates.push(asset.thumbnailLocalUri);
+  } else if (asset.external_source === "immich" && asset.external_asset_id) {
+    candidates.push(api.getImmichOriginalUrl(asset.external_asset_id));
+    if (asset.displayLocalUri) {
+      candidates.push(String(asset.displayLocalUri));
+    }
+    if (asset.external_thumbnail_url) {
+      candidates.push(String(asset.external_thumbnail_url));
+    }
+    candidates.push(api.getImmichThumbUrl(asset.external_asset_id));
+    if (asset.thumbnailLocalUri) {
+      candidates.push(String(asset.thumbnailLocalUri));
+    }
+  } else {
+    candidates.push(api.assetFileUrl(asset.id));
+    if (asset.displayLocalUri) {
+      candidates.push(String(asset.displayLocalUri));
+    }
+    if (asset.thumbnail_path || asset.thumbnail_url) {
+      candidates.push(`${API_BASE_URL}/assets/${asset.id}/thumbnail`);
+    }
+    if (asset.thumbnailLocalUri) {
+      candidates.push(String(asset.thumbnailLocalUri));
+    }
+  }
+
+  return Array.from(new Set(candidates.filter(Boolean)));
+}
+
 function resolveThumbUrl(asset: any): string {
+  if (asset.isLocalAsset) {
+    return asset.thumbnailLocalUri || asset.displayLocalUri || asset.originalLocalUri;
+  }
   if (asset.external_source === "immich" && asset.external_asset_id) {
     return api.getImmichThumbUrl(asset.external_asset_id);
   }
@@ -77,6 +125,99 @@ const colors = {
 const THUMB_SIZE = 52;
 const THUMB_GAP = 8;
 const THUMB_STRIP_PADDING = 12;
+const TAP_CANCEL_DISTANCE = 10;
+
+function ProgressiveImage({
+  asset,
+  width,
+  onAssetCached,
+  onPress,
+}: {
+  asset: any;
+  width: number;
+  onAssetCached?: () => void;
+  onPress?: () => void;
+}) {
+  const candidates = imageQualityCandidates(asset);
+  const [candidateIndex, setCandidateIndex] = useState(0);
+  const cacheAttemptedRef = useRef(false);
+  const tapStartRef = useRef({ x: 0, y: 0, moved: false });
+  const activeUri = candidates[candidateIndex] || resolveImageUrl(asset);
+  const source = activeUri?.startsWith("file://")
+    ? { uri: activeUri }
+    : authenticatedImageSource(activeUri);
+
+  useEffect(() => {
+    setCandidateIndex(0);
+    cacheAttemptedRef.current = false;
+  }, [asset?.id, asset?.external_asset_id]);
+
+  return (
+    <Pressable
+      style={[styles.imageTapTarget, { width }]}
+      onTouchStart={(event) => {
+        const touch = event.nativeEvent;
+        tapStartRef.current = {
+          x: touch.pageX,
+          y: touch.pageY,
+          moved: false,
+        };
+      }}
+      onTouchMove={(event) => {
+        const touch = event.nativeEvent;
+        const dx = touch.pageX - tapStartRef.current.x;
+        const dy = touch.pageY - tapStartRef.current.y;
+        if (Math.hypot(dx, dy) > TAP_CANCEL_DISTANCE) {
+          tapStartRef.current.moved = true;
+        }
+      }}
+      onPress={() => {
+        if (!tapStartRef.current.moved) {
+          onPress?.();
+        }
+      }}
+    >
+      <Image
+        source={source}
+        style={[styles.fullImage, { width }]}
+        resizeMode="contain"
+        onError={() => {
+          setCandidateIndex((current) =>
+            current < candidates.length - 1 ? current + 1 : current
+          );
+        }}
+        onLoad={() => {
+          if (
+            !asset?.isLocalAsset &&
+            asset?.id &&
+            activeUri?.startsWith("file://") &&
+            (activeUri === asset.displayLocalUri || activeUri === asset.thumbnailLocalUri)
+          ) {
+            touchRemoteAssetCache(Number(asset.id)).catch(() => {});
+          }
+          if (
+            cacheAttemptedRef.current ||
+            candidateIndex !== 0 ||
+            asset?.isLocalAsset ||
+            asset?.displayLocalUri ||
+            !asset?.id ||
+            !activeUri ||
+            activeUri.startsWith("file://")
+          ) {
+            return;
+          }
+          cacheAttemptedRef.current = true;
+          cacheRemoteAssetDerivatives({
+            remoteAssetId: Number(asset.id),
+            sourceUri: activeUri,
+          })
+            .then(() => onAssetCached?.())
+            .catch(() => {});
+        }}
+      />
+    </Pressable>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // ImageViewer
@@ -89,14 +230,21 @@ export default function ImageViewer({
   onClose,
   onSetCover,
   onNavigate,
+  onAssetCached,
 }: ImageViewerProps) {
   const { width: pageWidth } = useWindowDimensions();
   const pagerRef = useRef<ScrollView | null>(null);
   const thumbnailStripRef = useRef<ScrollView | null>(null);
   const didInitialScrollRef = useRef(false);
   const syncedIndexRef = useRef(currentIndex);
+  const dragStartXRef = useRef(currentIndex * pageWidth);
+  const dragStartIndexRef = useRef(currentIndex);
+  const settleTargetIndexRef = useRef<number | null>(null);
   const currentAsset = images[currentIndex];
-  const isCover = currentAsset?.id != null && currentAsset.id === coverId;
+  const currentAssetKey = currentAsset?.isLocalAsset
+    ? currentAsset.localId
+    : currentAsset?.id;
+  const isCover = currentAssetKey != null && currentAssetKey === coverId;
 
   useEffect(() => {
     if (!pagerRef.current || images.length === 0) return;
@@ -134,28 +282,74 @@ export default function ImageViewer({
     });
   }, [currentIndex, images.length, pageWidth]);
 
-  const navigateTo = (index: number, animated = true) => {
+  const settleToIndex = (index: number, animated = true) => {
     const nextIndex = Math.max(0, Math.min(index, images.length - 1));
-    if (nextIndex === currentIndex) return;
-    syncedIndexRef.current = nextIndex;
+    settleTargetIndexRef.current = nextIndex;
     pagerRef.current?.scrollTo({
       x: nextIndex * pageWidth,
       animated,
     });
-    onNavigate(nextIndex);
+    if (nextIndex !== syncedIndexRef.current) {
+      syncedIndexRef.current = nextIndex;
+      onNavigate(nextIndex);
+    }
+  };
+
+  const navigateTo = (index: number, animated = true) => {
+    settleToIndex(index, animated);
   };
 
   const filename = currentAsset?.original_filename || "image";
+
+  const handlePageDragStart = (
+    event: NativeSyntheticEvent<NativeScrollEvent>
+  ) => {
+    dragStartXRef.current = event.nativeEvent.contentOffset.x;
+    dragStartIndexRef.current = syncedIndexRef.current;
+    settleTargetIndexRef.current = null;
+  };
+
+  const handlePageDragEnd = (
+    event: NativeSyntheticEvent<NativeScrollEvent>
+  ) => {
+    if (pageWidth <= 0) return;
+    const baseIndex = dragStartIndexRef.current;
+    const dragDistance = event.nativeEvent.contentOffset.x - dragStartXRef.current;
+    const velocityX = (event.nativeEvent as any).velocity?.x || 0;
+    const threshold = Math.min(Math.max(pageWidth * 0.18, 44), 110);
+    let targetIndex = baseIndex;
+
+    if (dragDistance > threshold || velocityX > 0.35) {
+      targetIndex = baseIndex + 1;
+    } else if (dragDistance < -threshold || velocityX < -0.35) {
+      targetIndex = baseIndex - 1;
+    }
+
+    settleToIndex(targetIndex, true);
+  };
 
   const handlePageSettled = (
     event: NativeSyntheticEvent<NativeScrollEvent>
   ) => {
     if (pageWidth <= 0) return;
+    const requestedTarget = settleTargetIndexRef.current;
+    if (requestedTarget !== null) {
+      const settledOffset = requestedTarget * pageWidth;
+      if (Math.abs(event.nativeEvent.contentOffset.x - settledOffset) > 1) {
+        pagerRef.current?.scrollTo({
+          x: settledOffset,
+          animated: false,
+        });
+      }
+      settleTargetIndexRef.current = null;
+      return;
+    }
+
     const nextIndex = Math.round(event.nativeEvent.contentOffset.x / pageWidth);
     const clampedIndex = Math.max(0, Math.min(nextIndex, images.length - 1));
-    const delta = clampedIndex - currentIndex;
+    const delta = clampedIndex - syncedIndexRef.current;
     const settledIndex =
-      Math.abs(delta) > 1 ? currentIndex + Math.sign(delta) : clampedIndex;
+      Math.abs(delta) > 1 ? syncedIndexRef.current + Math.sign(delta) : clampedIndex;
 
     if (settledIndex !== clampedIndex) {
       pagerRef.current?.scrollTo({
@@ -164,10 +358,7 @@ export default function ImageViewer({
       });
     }
 
-    if (settledIndex !== currentIndex) {
-      syncedIndexRef.current = settledIndex;
-      onNavigate(settledIndex);
-    }
+    settleToIndex(settledIndex, false);
   };
 
   return (
@@ -195,12 +386,14 @@ export default function ImageViewer({
             horizontal
             pagingEnabled
             showsHorizontalScrollIndicator={false}
-            bounces={false}
-            alwaysBounceHorizontal={false}
+            bounces
+            alwaysBounceHorizontal
             directionalLockEnabled
             decelerationRate="fast"
             disableIntervalMomentum
             scrollEventThrottle={16}
+            onScrollBeginDrag={handlePageDragStart}
+            onScrollEndDrag={handlePageDragEnd}
             onMomentumScrollEnd={handlePageSettled}
           >
             {images.map((asset: any, index: number) => (
@@ -215,10 +408,11 @@ export default function ImageViewer({
                   showsHorizontalScrollIndicator={false}
                   showsVerticalScrollIndicator={false}
                 >
-                  <Image
-                    source={authenticatedImageSource(resolveImageUrl(asset))}
-                    style={[styles.fullImage, { width: pageWidth }]}
-                    resizeMode="contain"
+                  <ProgressiveImage
+                    asset={asset}
+                    width={pageWidth}
+                    onAssetCached={onAssetCached}
+                    onPress={onClose}
                   />
                 </ScrollView>
               </View>
@@ -234,7 +428,7 @@ export default function ImageViewer({
           <TouchableOpacity
             style={styles.setCoverButton}
             onPress={() => {
-              if (currentAsset?.id != null) onSetCover(currentAsset.id);
+              if (currentAsset) onSetCover(currentAsset);
             }}
             activeOpacity={0.7}
           >
@@ -266,7 +460,11 @@ export default function ImageViewer({
                     activeOpacity={0.8}
                   >
                     <Image
-                      source={authenticatedImageSource(resolveThumbUrl(asset))}
+                      source={
+                        resolveThumbUrl(asset).startsWith("file://")
+                          ? { uri: resolveThumbUrl(asset) }
+                          : authenticatedImageSource(resolveThumbUrl(asset))
+                      }
                       style={styles.thumbImage}
                       resizeMode="cover"
                     />
@@ -330,6 +528,11 @@ const styles = StyleSheet.create({
   fullImage: {
     height: "100%",
   } as ImageStyle,
+  imageTapTarget: {
+    height: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+  } as ViewStyle,
 
   // Toolbar
   toolbar: {

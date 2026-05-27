@@ -1,4 +1,5 @@
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1";
+export const API_ROOT_URL = API_BASE_URL.replace(/\/api\/v1\/?$/, "");
 const TOKEN_STORAGE_KEY = "artifactory_access_token";
 let authToken = null;
 const REFRESH_TOKEN_STORAGE_KEY = "artifactory_refresh_token";
@@ -140,6 +141,20 @@ export async function request(path, options = {}) {
 }
 
 export const api = {
+  checkBackendReady: async () => {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 3000);
+    try {
+      const response = await fetch(`${API_ROOT_URL}/health/ready`, {
+        signal: controller.signal,
+      });
+      return response.ok;
+    } catch (_) {
+      return false;
+    } finally {
+      window.clearTimeout(timeout);
+    }
+  },
   getKits: ({ skip = 0, limit = 20, sort = "activity_at", order = "desc" } = {}) => {
     const params = new URLSearchParams();
     params.set("skip", String(skip));
@@ -199,6 +214,7 @@ export const api = {
     return request("/links");
   },
   createLink: (payload) => request("/links", { method: "POST", body: JSON.stringify(payload) }),
+  linkThumbnailUrl: (id) => `${API_BASE_URL}/links/${id}/thumbnail`,
   deleteLink: (id) => request(`/links/${id}`, { method: "DELETE" }),
   getTimeline: (kitId) => request(`/kits/${kitId}/timeline`),
   createTimeline: (kitId, payload) =>

@@ -6,6 +6,7 @@ import {
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
+  Image,
   StyleSheet,
   ViewStyle,
   TextStyle,
@@ -45,6 +46,8 @@ export default function LinkImportScreen() {
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("REVIEW");
   const [notes, setNotes] = useState("");
+  const [source, setSource] = useState<string | null>(null);
+  const [thumbnailUri, setThumbnailUri] = useState<string | null>(null);
   const [kits, setKits] = useState<any[]>([]);
   const [kitQuery, setKitQuery] = useState("");
   const [selectedKitId, setSelectedKitId] = useState<number | null>(null);
@@ -66,6 +69,8 @@ export default function LinkImportScreen() {
     setTitle(parsed.title);
     setCategory(parsed.category);
     setNotes(parsed.notes);
+    setSource(parsed.source);
+    setThumbnailUri(parsed.thumbnailUri ?? null);
   }, []);
 
   useEffect(() => {
@@ -118,6 +123,10 @@ export default function LinkImportScreen() {
         .includes(q)
     );
   }, [kits, kitQuery]);
+  const selectedKit = useMemo(
+    () => kits.find((kit) => kit.id === selectedKitId) ?? null,
+    [kits, selectedKitId]
+  );
 
   const handleSave = async () => {
     if (!selectedKitId || !url.trim() || !title.trim()) return;
@@ -132,18 +141,53 @@ export default function LinkImportScreen() {
           )
         : null;
       if (duplicate) {
+        if (
+          thumbnailUri?.startsWith("file://") &&
+          duplicate.id &&
+          !duplicate.thumbnail_url &&
+          !duplicate.thumbnail_path
+        ) {
+          try {
+            const formData = new FormData();
+            formData.append("file", {
+              uri: thumbnailUri,
+              name: thumbnailUri.split("/").pop()?.split("?")[0] || "link-thumbnail.jpg",
+              type: thumbnailUri.toLowerCase().includes(".png") ? "image/png" : "image/jpeg",
+            } as any);
+            await api.uploadLinkThumbnail(duplicate.id, formData);
+            router.replace(`/kits/${selectedKitId}?tab=links`);
+            return;
+          } catch {
+            setError("That kit already has this link, and the thumbnail could not be attached.");
+            return;
+          }
+        }
         setError("That kit already has this link.");
         return;
       }
 
-      await api.createLink({
+      const newLink = await api.createLink({
         kit_id: selectedKitId,
         url: url.trim(),
         category,
         title: title.trim(),
         notes: notes.trim() || null,
+        source,
         tag_ids: [],
       });
+      if (thumbnailUri?.startsWith("file://") && newLink?.id) {
+        try {
+          const formData = new FormData();
+          formData.append("file", {
+            uri: thumbnailUri,
+            name: thumbnailUri.split("/").pop()?.split("?")[0] || "link-thumbnail.jpg",
+            type: thumbnailUri.toLowerCase().includes(".png") ? "image/png" : "image/jpeg",
+          } as any);
+          await api.uploadLinkThumbnail(newLink.id, formData);
+        } catch {
+          // The link itself is already saved; the shared thumbnail is optional.
+        }
+      }
       router.replace(`/kits/${selectedKitId}?tab=links`);
     } catch (err: any) {
       setError(err?.message || "Failed to save link");
@@ -200,6 +244,16 @@ export default function LinkImportScreen() {
 
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Link</Text>
+          {source || thumbnailUri ? (
+            <View style={styles.sourcePreview}>
+              {thumbnailUri ? (
+                <Image source={{ uri: thumbnailUri }} style={styles.thumbnailPreview} />
+              ) : null}
+              {source ? (
+                <Text style={styles.sourceBadge}>{source}</Text>
+              ) : null}
+            </View>
+          ) : null}
           <Text style={styles.label}>URL</Text>
           <TextInput
             style={styles.input}
@@ -254,7 +308,13 @@ export default function LinkImportScreen() {
               <Text style={styles.loadingText}>Loading kits...</Text>
             </View>
           ) : (
-            <View style={styles.kitList}>
+            <ScrollView
+              style={styles.kitListScroll}
+              contentContainerStyle={styles.kitList}
+              nestedScrollEnabled
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator
+            >
               {filteredKits.slice(0, 30).map((kit) => {
                 const selected = selectedKitId === kit.id;
                 return (
@@ -273,18 +333,26 @@ export default function LinkImportScreen() {
                   </TouchableOpacity>
                 );
               })}
-            </View>
+            </ScrollView>
           )}
         </View>
-
-        <Button
-          title={saving ? "Saving..." : "Save Link"}
-          onPress={handleSave}
-          loading={saving}
-          disabled={!selectedKitId || !url.trim() || !title.trim() || saving}
-        />
-        <View style={styles.bottomSpacer} />
       </ScrollView>
+      <View style={styles.actionBar}>
+        <View style={styles.actionSummary}>
+          <Text style={styles.actionLabel}>Target kit</Text>
+          <Text style={styles.actionTitle} numberOfLines={1}>
+            {selectedKit?.name || "Choose a kit"}
+          </Text>
+        </View>
+        <View style={styles.actionButton}>
+          <Button
+            title={saving ? "Saving..." : "Save Link"}
+            onPress={handleSave}
+            loading={saving}
+            disabled={!selectedKitId || !url.trim() || !title.trim() || saving}
+          />
+        </View>
+      </View>
     </SafeAreaView>
   );
 }
@@ -321,7 +389,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 8,
-    paddingBottom: 40,
+    paddingBottom: 18,
   } as ViewStyle,
   errorWrap: {
     marginBottom: 12,
@@ -346,6 +414,29 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginBottom: 5,
     marginTop: 8,
+    textTransform: "uppercase",
+  } as TextStyle,
+  sourcePreview: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 10,
+  } as ViewStyle,
+  thumbnailPreview: {
+    width: 84,
+    height: 56,
+    borderRadius: 8,
+    backgroundColor: "#eee8df",
+  },
+  sourceBadge: {
+    alignSelf: "flex-start",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: "rgba(197,103,42,0.12)",
+    color: colors.accent,
+    fontSize: 12,
+    fontWeight: "800",
     textTransform: "uppercase",
   } as TextStyle,
   input: {
@@ -377,9 +468,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.muted,
   } as TextStyle,
+  kitListScroll: {
+    maxHeight: 260,
+    marginTop: 10,
+  } as ViewStyle,
   kitList: {
     gap: 8,
-    marginTop: 10,
+    paddingBottom: 2,
   } as ViewStyle,
   kitRow: {
     borderWidth: 1,
@@ -403,7 +498,40 @@ const styles = StyleSheet.create({
     color: colors.muted,
     marginTop: 3,
   } as TextStyle,
-  bottomSpacer: {
-    height: 32,
+  actionBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.line,
+    backgroundColor: colors.surface,
+    shadowColor: "#000000",
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: -4 },
+    elevation: 8,
+    zIndex: 2,
+  } as ViewStyle,
+  actionSummary: {
+    flex: 1,
+    minWidth: 0,
+  } as ViewStyle,
+  actionLabel: {
+    fontSize: 11,
+    color: colors.muted,
+    fontWeight: "800",
+    textTransform: "uppercase",
+  } as TextStyle,
+  actionTitle: {
+    fontSize: 14,
+    color: colors.ink,
+    fontWeight: "700",
+    marginTop: 2,
+  } as TextStyle,
+  actionButton: {
+    minWidth: 130,
   } as ViewStyle,
 });

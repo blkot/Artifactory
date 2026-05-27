@@ -6,6 +6,7 @@ import {
   StyleSheet,
   ViewStyle,
   TextStyle,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -18,6 +19,12 @@ import {
   API_BASE_URL,
   REFRESH_TOKEN_STORAGE_KEY,
 } from "../../lib/api/client";
+import {
+  BACKEND_READY_TIMEOUT_MS,
+  IMAGE_CACHE_CONFIG,
+  SYNC_MAX_JOBS_PER_RUN,
+} from "../../lib/config";
+import { clearRemoteImageCache, getImageCacheStats } from "../../lib/imageCache";
 import Button from "../../components/ui/Button";
 import ErrorBanner from "../../components/ui/ErrorBanner";
 
@@ -35,6 +42,11 @@ const colors = {
   danger: "#8d2b2b",
 };
 
+function formatBytes(bytes: number) {
+  const mb = bytes / (1024 * 1024);
+  return `${mb.toFixed(mb >= 10 ? 0 : 1)} MB`;
+}
+
 // ---------------------------------------------------------------------------
 // Settings Screen
 // ---------------------------------------------------------------------------
@@ -44,6 +56,8 @@ export default function SettingsScreen() {
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [loggingOut, setLoggingOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cacheStats, setCacheStats] = useState({ count: 0, byteSize: 0 });
+  const [clearingCache, setClearingCache] = useState(false);
 
   // -----------------------------------------------------------------------
   // Auth check
@@ -64,6 +78,18 @@ export default function SettingsScreen() {
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
+
+  const refreshCacheStats = useCallback(async () => {
+    try {
+      setCacheStats(await getImageCacheStats());
+    } catch {
+      setCacheStats({ count: 0, byteSize: 0 });
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshCacheStats();
+  }, [refreshCacheStats]);
 
   // -----------------------------------------------------------------------
   // Handlers
@@ -87,6 +113,32 @@ export default function SettingsScreen() {
     } finally {
       setLoggingOut(false);
     }
+  };
+
+  const confirmClearImageCache = () => {
+    Alert.alert(
+      "Clear image cache?",
+      "This only removes synced remote display/thumbnail cache. Pending local originals are kept.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Clear",
+          style: "destructive",
+          onPress: async () => {
+            setClearingCache(true);
+            setError(null);
+            try {
+              await clearRemoteImageCache();
+              await refreshCacheStats();
+            } catch (err: any) {
+              setError(err?.message || "Failed to clear image cache");
+            } finally {
+              setClearingCache(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   // -----------------------------------------------------------------------
@@ -141,6 +193,58 @@ export default function SettingsScreen() {
             <Text style={styles.infoValue} selectable>
               {API_BASE_URL}
             </Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Ready Timeout</Text>
+            <Text style={styles.infoValue}>
+              {BACKEND_READY_TIMEOUT_MS} ms
+            </Text>
+          </View>
+        </View>
+
+        {/* Offline asset tuning */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Offline Assets</Text>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Display Cache</Text>
+            <Text style={styles.infoValue}>
+              {IMAGE_CACHE_CONFIG.displayMaxEdge}px · q{IMAGE_CACHE_CONFIG.displayQuality}
+            </Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Thumbnail Cache</Text>
+            <Text style={styles.infoValue}>
+              {IMAGE_CACHE_CONFIG.thumbnailMaxEdge}px · q{IMAGE_CACHE_CONFIG.thumbnailQuality}
+            </Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Cache Limit</Text>
+            <Text style={styles.infoValue}>
+              {formatBytes(IMAGE_CACHE_CONFIG.maxBytes)}
+            </Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Current Remote Cache</Text>
+            <Text style={styles.infoValue}>
+              {formatBytes(cacheStats.byteSize)} · {cacheStats.count} assets
+            </Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Sync Batch</Text>
+            <Text style={styles.infoValue}>
+              {SYNC_MAX_JOBS_PER_RUN > 0
+                ? `${SYNC_MAX_JOBS_PER_RUN} jobs/run`
+                : "All queued jobs"}
+            </Text>
+          </View>
+          <View style={styles.actionRow}>
+            <Button
+              title={clearingCache ? "Clearing..." : "Clear Synced Image Cache"}
+              onPress={confirmClearImageCache}
+              variant="ghost"
+              disabled={clearingCache || cacheStats.count === 0}
+              loading={clearingCache}
+            />
           </View>
         </View>
 
@@ -270,6 +374,7 @@ const styles = StyleSheet.create({
   // Connection
   infoRow: {
     gap: 6,
+    marginBottom: 10,
   } as ViewStyle,
   infoLabel: {
     fontSize: 13,

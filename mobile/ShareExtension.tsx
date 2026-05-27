@@ -8,8 +8,8 @@ import {
 } from "expo-share-extension";
 import type { InitialProps } from "expo-share-extension";
 
-function sharedPayload({ text, url }: InitialProps): string {
-  const parts = [text, url]
+function sharedPayload({ text, url, files, images, videos }: InitialProps): string {
+  const parts = [text, url, ...(files ?? []), ...(images ?? []), ...(videos ?? [])]
     .map((value) => (typeof value === "string" ? value.trim() : ""))
     .filter(Boolean);
   return Array.from(new Set(parts)).join(" ");
@@ -17,7 +17,10 @@ function sharedPayload({ text, url }: InitialProps): string {
 
 export default function ShareExtension(props: InitialProps) {
   const [didOpen, setDidOpen] = useState(false);
-  const payload = useMemo(() => sharedPayload(props), [props.text, props.url]);
+  const payload = useMemo(
+    () => sharedPayload(props),
+    [props.files, props.images, props.text, props.url, props.videos],
+  );
 
   const openImporter = useCallback(() => {
     if (!payload) return;

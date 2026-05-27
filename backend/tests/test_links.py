@@ -1,4 +1,7 @@
 import time
+from io import BytesIO
+
+from PIL import Image
 
 
 def _create_kit(client):
@@ -34,11 +37,15 @@ def test_links_crud_flow(client) -> None:
             "category": "REVIEW",
             "title": "Detailed review",
             "notes": "Useful panel line tips",
+            "source": "bilibili",
             "tag_ids": [tag_id],
         },
     )
     assert create_response.status_code == 201
-    link_id = create_response.json()["id"]
+    created_link = create_response.json()
+    link_id = created_link["id"]
+    assert created_link["source"] == "bilibili"
+    assert created_link["thumbnail_url"] is None
     assert client.get(f"/api/v1/kits/{kit_id}").json()["activity_at"] != initial_activity_at
 
     list_response = client.get("/api/v1/links")
@@ -54,6 +61,37 @@ def test_links_crud_flow(client) -> None:
 
     delete_response = client.delete(f"/api/v1/links/{link_id}")
     assert delete_response.status_code == 204
+
+
+def test_link_thumbnail_upload_and_download(client) -> None:
+    kit_id = _create_kit(client)
+    create_response = client.post(
+        "/api/v1/links",
+        json={
+            "kit_id": kit_id,
+            "url": "https://b23.tv/example",
+            "category": "TUTORIAL",
+            "title": "Bilibili video",
+            "source": "bilibili",
+            "tag_ids": [],
+        },
+    )
+    assert create_response.status_code == 201
+    link_id = create_response.json()["id"]
+
+    image = BytesIO()
+    Image.new("RGB", (2, 2), color=(255, 0, 0)).save(image, format="PNG")
+    image_bytes = image.getvalue()
+    upload_response = client.post(
+        f"/api/v1/links/{link_id}/thumbnail",
+        files={"file": ("thumb.png", image_bytes, "image/png")},
+    )
+    assert upload_response.status_code == 200
+    assert upload_response.json()["thumbnail_url"] == f"/api/v1/links/{link_id}/thumbnail"
+
+    thumbnail_response = client.get(f"/api/v1/links/{link_id}/thumbnail")
+    assert thumbnail_response.status_code == 200
+    assert thumbnail_response.content
 
 
 def test_link_with_unknown_kit_returns_not_found(client) -> None:

@@ -10,7 +10,7 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 class Settings(BaseSettings):
     app_name: str = "Artifactory"
-    app_version: str = "0.1.0"
+    app_version: str = "0.3.0"
     debug: bool = False
     environment: str = "development"
 

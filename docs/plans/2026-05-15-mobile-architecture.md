@@ -16,6 +16,35 @@ Date: 2026-05-15
 - **Builds**: EAS Build (Expo cloud, no local Xcode required)
 - **Updates**: EAS Update (OTA, no App Store review for JS changes)
 
+## Image Availability And Offline Cache Policy
+
+Artifactory mobile must treat kit images as durable user data, not as disposable remote-only media. Users should be able to browse previously viewed kit images when the phone has no network, the Artifactory backend is offline, or an external source such as Immich is unreachable from the current network.
+
+The image viewer should always attempt the highest quality source first and degrade gracefully:
+
+1. Original file or original external source image.
+2. App-local cached display copy, when available.
+3. Backend-served preview or transformed copy, when available.
+4. Backend or external-source thumbnail as the final remote fallback.
+5. App-local cached thumbnail as the final offline fallback.
+
+For local Artifactory uploads, the original file endpoint is the best-quality source and the backend thumbnail endpoint is only for grids, preview strips, and low-quality fallback. For Immich assets, the Immich original proxy is the best-quality source and the Immich preview thumbnail is a fallback.
+
+The mobile app should maintain an app-local image cache with at least two tiers:
+
+- Display cache: downscaled enough for smooth mobile viewing, but materially better than grid thumbnails.
+- Thumbnail cache: small images for grids, preview strips, and offline placeholders.
+
+Cache writes should be opportunistic: whenever the viewer successfully loads an original or high-quality preview, store a display-sized copy and a thumbnail-sized copy locally. Cache reads should be transparent to the UI: if remote loading fails, the same image slot falls back to cached copies without breaking swipe/zoom navigation. Cache storage should be bounded by size and age, with recently viewed kit images retained preferentially.
+
+## Offline Asset Queue
+
+Mobile asset capture is local-first. A photo taken with the camera or chosen from the library is copied into app document storage, converted into display and thumbnail derivatives, inserted into the local SQLite asset store, and shown in the kit immediately. Uploads are represented as SQLite jobs and may be queued, uploading, failed, or done. The app checks `/health/ready` on foreground/resume and kit detail entry, then uploads queued jobs one at a time only while the app is foreground and the backend is reachable.
+
+iOS background execution is not assumed. If the app is minimized or killed during an upload, the next launch/resume resets stale uploading jobs back to queued and retries without deleting local files. Unsynced originals are kept indefinitely until the user removes the pending local asset or the upload succeeds. Synced assets keep display and thumbnail derivatives for offline viewing; remote-derived display caches are capped and evicted least-recently-used first.
+
+The web frontend remains backend-first for this phase. It does not show mobile-only pending assets and does not maintain a browser upload queue. When the backend or an external image source is unavailable, web views should show explicit unavailable states and retryable placeholders instead of implying the asset exists locally.
+
 ## What Ports Directly from Web
 
 ```

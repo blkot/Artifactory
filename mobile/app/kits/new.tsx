@@ -22,6 +22,10 @@ import Input from "../../components/ui/Input";
 import Tag from "../../components/ui/Tag";
 import ErrorBanner from "../../components/ui/ErrorBanner";
 import ImmichPicker from "../../components/ImmichPicker";
+import {
+  buildLocalImageAssetFormData,
+  takeAssetPhoto,
+} from "../../lib/assetUpload";
 
 // ---------------------------------------------------------------------------
 // Design tokens
@@ -280,6 +284,27 @@ export default function NewKitScreen() {
     }
   };
 
+  const takePhoto = async (section: keyof SectionItems) => {
+    try {
+      const asset = await takeAssetPhoto();
+      if (!asset) return;
+
+      setSectionItems((prev) => ({
+        ...prev,
+        [section]: [
+          ...prev[section],
+          {
+            key: nextKey(),
+            file: asset,
+            status: "pending" as const,
+          },
+        ],
+      }));
+    } catch (err: any) {
+      Alert.alert("Error", err?.message || "Failed to take photo");
+    }
+  };
+
   const removeItem = (section: keyof SectionItems, key: string) => {
     setSectionItems((prev) => ({
       ...prev,
@@ -409,19 +434,11 @@ export default function NewKitScreen() {
 
               await api.uploadAsset(formData);
             } else {
-              // Local file upload
-              const formData = new FormData();
-              formData.append("kit_id", String(createdKit.id));
-              formData.append("type", assetType);
-              const fileObj = {
-                uri: item.file.uri,
-                name: item.file.fileName || `image_${Date.now()}.jpg`,
-                type: item.file.mimeType || "image/jpeg",
-              } as any;
-              formData.append("file", fileObj);
-              if (item.file.fileName) {
-                formData.append("original_filename", item.file.fileName);
-              }
+              const formData = buildLocalImageAssetFormData({
+                kitId: createdKit.id,
+                type: assetType,
+                asset: item.file,
+              });
 
               await api.uploadAsset(formData);
             }
@@ -481,13 +498,23 @@ export default function NewKitScreen() {
     const items = sectionItems[section];
     return (
       <View style={styles.imageSection}>
-        <TouchableOpacity
-          style={styles.selectFilesButton}
-          onPress={() => pickImages(section)}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.selectFilesText}>Select files...</Text>
-        </TouchableOpacity>
+        <View style={styles.imageActionRow}>
+          <TouchableOpacity
+            style={[styles.imageActionButton, styles.imageActionButtonPrimary]}
+            onPress={() => takePhoto(section)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.imageActionButtonPrimaryText}>Take Photo</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.imageActionButton}
+            onPress={() => pickImages(section)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.imageActionButtonText}>Choose Photos</Text>
+          </TouchableOpacity>
+        </View>
 
         <TouchableOpacity
           style={styles.immichImportButton}
@@ -992,6 +1019,34 @@ const styles = StyleSheet.create({
 
   // Image sections
   imageSection: {} as ViewStyle,
+  imageActionRow: {
+    flexDirection: "row",
+    gap: 10,
+  } as ViewStyle,
+  imageActionButton: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderStyle: "dashed",
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: "center",
+    backgroundColor: "#faf8f5",
+  } as ViewStyle,
+  imageActionButtonPrimary: {
+    borderColor: colors.accent,
+    backgroundColor: "rgba(197,103,42,0.08)",
+  } as ViewStyle,
+  imageActionButtonText: {
+    fontSize: 15,
+    color: colors.muted,
+    fontWeight: "500",
+  } as TextStyle,
+  imageActionButtonPrimaryText: {
+    fontSize: 15,
+    color: colors.accent,
+    fontWeight: "700",
+  } as TextStyle,
   selectFilesButton: {
     borderWidth: 1,
     borderColor: colors.line,

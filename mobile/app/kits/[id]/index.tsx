@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import {
   View,
   Text,
@@ -10,12 +10,14 @@ import {
   Image,
   Modal,
   Alert,
+  AppState,
   ViewStyle,
   TextStyle,
   ImageStyle,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, router } from "expo-router";
+import * as ImagePicker from "expo-image-picker";
 import {
   api,
   API_BASE_URL,
@@ -30,6 +32,28 @@ import Input from "../../../components/ui/Input";
 import ErrorBanner from "../../../components/ui/ErrorBanner";
 import ImageViewer from "../../../components/ImageViewer";
 import ImmichPicker from "../../../components/ImmichPicker";
+import {
+  LOCAL_IMAGE_ASSET_TYPES,
+  takeAssetPhoto,
+} from "../../../lib/assetUpload";
+import {
+  createCachedLocalAsset,
+  deleteCachedLocalAssetFiles,
+} from "../../../lib/imageCache";
+import {
+  deleteLocalAsset,
+  enqueueUploadJob,
+  initLocalAssetStore,
+  insertLocalAsset,
+  listLocalAssetsForKit,
+  listRemoteAssetCachesForAssetIds,
+  requeueUploadJob,
+  updateLocalAssetSync,
+  type LocalAsset,
+  type RemoteAssetCache,
+} from "../../../lib/localAssetStore";
+import { checkBackendReady, type BackendStatus } from "../../../lib/serviceStatus";
+import { prepareSyncQueue, syncPendingAssets } from "../../../lib/syncQueue";
 
 // ---------------------------------------------------------------------------
 // Design tokens
@@ -85,6 +109,12 @@ const TAG_COLOR_PRESETS = [
 // ---------------------------------------------------------------------------
 
 function resolveThumbnailUrl(asset: any): string {
+  if (asset.isLocalAsset) {
+    return asset.thumbnailLocalUri || asset.displayLocalUri || asset.originalLocalUri;
+  }
+  if (asset.thumbnailLocalUri) {
+    return asset.thumbnailLocalUri;
+  }
   if (asset.external_source === "immich" && asset.external_asset_id) {
     return api.getImmichThumbUrl(asset.external_asset_id);
   }
@@ -92,6 +122,28 @@ function resolveThumbnailUrl(asset: any): string {
     return `${API_BASE_URL}/assets/${asset.id}/thumbnail`;
   }
   return api.assetFileUrl(asset.id);
+}
+
+function imageSourceForUri(uri: string) {
+  return uri?.startsWith("file://")
+    ? { uri }
+    : authenticatedImageSource(uri);
+}
+
+function linkThumbnailSource(link: any) {
+  if (link.thumbnailUri?.startsWith("file://")) return { uri: link.thumbnailUri };
+  if (link.thumbnail_url || link.thumbnail_path) {
+    return authenticatedImageSource(api.linkThumbnailUrl(link.id));
+  }
+  return null;
+}
+
+function sourceLabel(source: string | null | undefined): string | null {
+  if (!source) return null;
+  if (source === "bilibili") return "Bilibili";
+  if (source === "xiaohongshu") return "Xiaohongshu";
+  if (source === "generic") return null;
+  return source;
 }
 
 function formatPrice(price: any): string | null {
@@ -123,6 +175,35 @@ function groupAssetsByType(assets: any[]): Record<string, any[]> {
     groups[type].push(asset);
   }
   return groups;
+}
+
+function localAssetToDisplayAsset(asset: LocalAsset) {
+  return {
+    id: `local:${asset.localId}`,
+    localId: asset.localId,
+    kit_id: asset.kitId,
+    type: asset.type,
+    original_filename: asset.originalFilename,
+    mime_type: asset.mimeType,
+    description: asset.description,
+    isLocalAsset: true,
+    originalLocalUri: asset.originalLocalUri,
+    displayLocalUri: asset.displayLocalUri,
+    thumbnailLocalUri: asset.thumbnailLocalUri,
+    syncStatus: asset.syncStatus,
+    remoteAssetId: asset.remoteAssetId,
+    setAsCover: asset.setAsCover,
+    created_at: asset.createdAt,
+    lastAttemptAt: asset.lastAttemptAt,
+    error: asset.error,
+  };
+}
+
+function formatBytes(bytes: number) {
+  if (!bytes) return "0 MB";
+  const mb = bytes / (1024 * 1024);
+  if (mb < 1) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${mb.toFixed(mb >= 10 ? 0 : 1)} MB`;
 }
 
 // ---------------------------------------------------------------------------
@@ -166,6 +247,12 @@ export default function KitDetailScreen() {
   // Data
   const [kit, setKit] = useState<any>(null);
   const [assets, setAssets] = useState<any[]>([]);
+  const [localAssets, setLocalAssets] = useState<LocalAsset[]>([]);
+  const [remoteAssetCaches, setRemoteAssetCaches] = useState<RemoteAssetCache[]>(
+    []
+  );
+  const [backendStatus, setBackendStatus] =
+    useState<BackendStatus>("unknown");
   const [links, setLinks] = useState<any[]>([]);
   const [timeline, setTimeline] = useState<any[]>([]);
   const [tab, setTab] = useState(
@@ -196,6 +283,8 @@ export default function KitDetailScreen() {
     category: "REVIEW" as string,
     title: "",
     notes: "",
+    source: null as string | null,
+    thumbnailUri: null as string | null,
   });
   const [linkAdding, setLinkAdding] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
@@ -215,6 +304,15 @@ export default function KitDetailScreen() {
 
   // Immich picker
   const [immichPickerOpen, setImmichPickerOpen] = useState(false);
+  const [photoDraft, setPhotoDraft] =
+    useState<ImagePicker.ImagePickerAsset | null>(null);
+  const [assetUploadType, setAssetUploadType] = useState("BUILD_PHOTO");
+  const [assetUploadDescription, setAssetUploadDescription] = useState("");
+  const [assetSetCover, setAssetSetCover] = useState(false);
+  const [assetUploading, setAssetUploading] = useState(false);
+  const [assetUploadError, setAssetUploadError] = useState<string | null>(null);
+  const [syncInProgress, setSyncInProgress] = useState(false);
+  const syncRequestedRef = useRef(false);
 
   // -----------------------------------------------------------------------
   // Data fetching
@@ -247,6 +345,57 @@ export default function KitDetailScreen() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  const refreshLocalAssets = useCallback(async () => {
+    await initLocalAssetStore();
+    setLocalAssets(await listLocalAssetsForKit(kitId));
+  }, [kitId]);
+
+  const refreshRemoteAssetCaches = useCallback(async () => {
+    await initLocalAssetStore();
+    const ids = assets
+      .map((asset) => Number(asset.id))
+      .filter((id) => Number.isFinite(id));
+    setRemoteAssetCaches(await listRemoteAssetCachesForAssetIds(ids));
+  }, [assets]);
+
+  useEffect(() => {
+    refreshRemoteAssetCaches();
+  }, [refreshRemoteAssetCaches]);
+
+  const runForegroundSync = useCallback(async () => {
+    if (syncRequestedRef.current) return;
+    syncRequestedRef.current = true;
+    setSyncInProgress(true);
+    try {
+      await initLocalAssetStore();
+      await prepareSyncQueue();
+      await refreshLocalAssets();
+      const status = await checkBackendReady();
+      setBackendStatus(status);
+      if (status === "online") {
+        await syncPendingAssets({ onAssetUpdated: refreshLocalAssets });
+        await refreshLocalAssets();
+        await loadData();
+      }
+    } finally {
+      setSyncInProgress(false);
+      syncRequestedRef.current = false;
+    }
+  }, [loadData, refreshLocalAssets]);
+
+  useEffect(() => {
+    runForegroundSync();
+  }, [runForegroundSync]);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") {
+        runForegroundSync();
+      }
+    });
+    return () => sub.remove();
+  }, [runForegroundSync]);
 
   // -----------------------------------------------------------------------
   // Edit kit handlers
@@ -371,6 +520,142 @@ export default function KitDetailScreen() {
     }
   };
 
+  const handleSetViewerCover = async (asset: any) => {
+    if (asset?.isLocalAsset && asset.localId) {
+      await updateLocalAssetSync(asset.localId, { setAsCover: true });
+      await refreshLocalAssets();
+      runForegroundSync();
+      return;
+    }
+    if (asset?.id != null) {
+      await handleSetCover(asset.id);
+    }
+  };
+
+  const confirmDeleteLocalAsset = (asset: any) => {
+    if (!asset?.isLocalAsset || !asset.localId) return;
+    Alert.alert(
+      "Remove local asset?",
+      "This removes the pending local copy and cancels its upload job.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: async () => {
+            const local = localAssets.find(
+              (item) => item.localId === asset.localId
+            );
+            if (local) {
+              await deleteCachedLocalAssetFiles(local);
+            }
+            await deleteLocalAsset(asset.localId);
+            await refreshLocalAssets();
+          },
+        },
+      ]
+    );
+  };
+
+  const handleRetryLocalAsset = async (asset: any) => {
+    if (!asset?.isLocalAsset || !asset.localId) return;
+    await requeueUploadJob(asset.localId);
+    await refreshLocalAssets();
+    runForegroundSync();
+  };
+
+  const resetPhotoDraft = () => {
+    setPhotoDraft(null);
+    setAssetUploadType("BUILD_PHOTO");
+    setAssetUploadDescription("");
+    setAssetSetCover(false);
+    setAssetUploadError(null);
+  };
+
+  const persistLocalImageAsset = async ({
+    asset,
+    type,
+    description,
+    setAsCover = false,
+  }: {
+    asset: ImagePicker.ImagePickerAsset;
+    type: string;
+    description?: string;
+    setAsCover?: boolean;
+  }) => {
+    setAssetUploading(true);
+    setAssetUploadError(null);
+    try {
+      await initLocalAssetStore();
+      const cached = await createCachedLocalAsset({
+        kitId,
+        type,
+        asset,
+        description,
+        setAsCover,
+      });
+      await insertLocalAsset(cached);
+      await enqueueUploadJob(cached.localId);
+      await refreshLocalAssets();
+      runForegroundSync();
+      return cached;
+    } catch (err: any) {
+      setAssetUploadError(err?.message || "Failed to save local asset");
+      throw err;
+    } finally {
+      setAssetUploading(false);
+    }
+  };
+
+  const handleTakePhoto = async () => {
+    try {
+      const asset = await takeAssetPhoto();
+      if (!asset) return;
+      setAssetUploadType("BUILD_PHOTO");
+      setAssetUploadDescription("");
+      setAssetSetCover(!kit.thumbnail_asset_id && displayAssets.length === 0);
+      setAssetUploadError(null);
+      setPhotoDraft(asset);
+    } catch (err: any) {
+      Alert.alert("Error", err?.message || "Failed to take photo");
+    }
+  };
+
+  const handleChoosePhotos = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsMultipleSelection: true,
+        quality: 0.85,
+      });
+      if (result.canceled) return;
+
+      for (const asset of result.assets) {
+        await persistLocalImageAsset({
+          asset,
+          type: "BUILD_PHOTO",
+        });
+      }
+    } catch (err: any) {
+      setAssetUploadError(err?.message || "Failed to upload selected photos");
+    }
+  };
+
+  const handleSavePhotoDraft = async () => {
+    if (!photoDraft) return;
+    try {
+      await persistLocalImageAsset({
+        asset: photoDraft,
+        type: assetUploadType,
+        description: assetUploadDescription,
+        setAsCover: assetSetCover,
+      });
+      resetPhotoDraft();
+    } catch (err: any) {
+      setAssetUploadError(err?.message || "Failed to save photo");
+    }
+  };
+
   const handleImmichConfirm = async (
     immichAssets: any[],
     tagNames: string[]
@@ -414,6 +699,46 @@ export default function KitDetailScreen() {
       (link) => normalizeLinkUrl(String(link.url)) === normalizedUrl
     );
     if (duplicate) {
+      if (
+        linkForm.thumbnailUri?.startsWith("file://") &&
+        duplicate.id &&
+        !duplicate.thumbnail_url &&
+        !duplicate.thumbnail_path
+      ) {
+        setLinkAdding(true);
+        setLinkError(null);
+        try {
+          const formData = new FormData();
+          formData.append("file", {
+            uri: linkForm.thumbnailUri,
+            name:
+              linkForm.thumbnailUri.split("/").pop()?.split("?")[0] ||
+              "link-thumbnail.jpg",
+            type: linkForm.thumbnailUri.toLowerCase().includes(".png")
+              ? "image/png"
+              : "image/jpeg",
+          } as any);
+          const updatedLink = await api.uploadLinkThumbnail(duplicate.id, formData);
+          setLinks((prev) =>
+            prev.map((link) => (link.id === duplicate.id ? updatedLink : link))
+          );
+          setLinkForm({
+            url: "",
+            category: "REVIEW",
+            title: "",
+            notes: "",
+            source: null,
+            thumbnailUri: null,
+          });
+          setRawLinkText("");
+          setShowAddLink(false);
+        } catch (err: any) {
+          setLinkError(toUserMessage(err));
+        } finally {
+          setLinkAdding(false);
+        }
+        return;
+      }
       setLinkError("This kit already has that link.");
       return;
     }
@@ -428,12 +753,43 @@ export default function KitDetailScreen() {
         category: linkForm.category,
         title: linkForm.title.trim(),
         notes: linkForm.notes.trim() || null,
+        source: linkForm.source,
         tag_ids: [],
       });
-      setLinks((prev) => [...prev, newLink]);
-      setLinkForm({ url: "", category: "REVIEW", title: "", notes: "" });
+      let savedLink = newLink;
+      let thumbnailUploadFailed = false;
+      if (linkForm.thumbnailUri?.startsWith("file://") && newLink?.id) {
+        try {
+          const formData = new FormData();
+          formData.append("file", {
+            uri: linkForm.thumbnailUri,
+            name:
+              linkForm.thumbnailUri.split("/").pop()?.split("?")[0] ||
+              "link-thumbnail.jpg",
+            type: linkForm.thumbnailUri.toLowerCase().includes(".png")
+              ? "image/png"
+              : "image/jpeg",
+          } as any);
+          savedLink = await api.uploadLinkThumbnail(newLink.id, formData);
+        } catch {
+          thumbnailUploadFailed = true;
+        }
+      }
+
+      setLinks((prev) => [...prev, savedLink]);
+      setLinkForm({
+        url: "",
+        category: "REVIEW",
+        title: "",
+        notes: "",
+        source: null,
+        thumbnailUri: null,
+      });
       setRawLinkText("");
       setShowAddLink(false);
+      if (thumbnailUploadFailed) {
+        Alert.alert("Link saved", "The shared thumbnail could not be uploaded.");
+      }
     } catch (err: any) {
       setLinkError(toUserMessage(err));
     } finally {
@@ -451,6 +807,8 @@ export default function KitDetailScreen() {
       title: parsed.title,
       category: parsed.category,
       notes: prev.notes || parsed.notes,
+      source: parsed.source,
+      thumbnailUri: parsed.thumbnailUri ?? null,
     }));
   };
 
@@ -505,11 +863,71 @@ export default function KitDetailScreen() {
   // Derived data
   // -----------------------------------------------------------------------
 
-  const groupedAssets = groupAssetsByType(assets);
-  const coverAsset = assets.find((a) => a.id === kit?.thumbnail_asset_id);
-  const imageAssets = assets.filter((a) =>
+  const displayAssets = useMemo(() => {
+    const localByRemoteId = new Map(
+      localAssets
+        .filter((asset) => asset.remoteAssetId)
+        .map((asset) => [asset.remoteAssetId, asset])
+    );
+    const cacheByRemoteId = new Map(
+      remoteAssetCaches.map((cache) => [cache.remoteAssetId, cache])
+    );
+    const enrichedRemoteAssets = assets.map((asset) => {
+      const local = localByRemoteId.get(asset.id);
+      const cache = cacheByRemoteId.get(asset.id);
+      return {
+        ...asset,
+        displayLocalUri: local?.displayLocalUri ?? cache?.displayLocalUri,
+        thumbnailLocalUri: local?.thumbnailLocalUri ?? cache?.thumbnailLocalUri,
+      };
+    });
+    const remoteIds = new Set(enrichedRemoteAssets.map((asset) => asset.id));
+    const localDisplayAssets = localAssets
+      .filter(
+        (asset) =>
+          asset.syncStatus !== "synced" ||
+          !asset.remoteAssetId ||
+          !remoteIds.has(asset.remoteAssetId)
+      )
+      .map(localAssetToDisplayAsset);
+    return [...localDisplayAssets, ...enrichedRemoteAssets];
+  }, [assets, localAssets, remoteAssetCaches]);
+  const groupedAssets = groupAssetsByType(displayAssets);
+  const localCoverAsset = displayAssets.find(
+    (asset) => asset.isLocalAsset && asset.setAsCover && asset.syncStatus !== "synced"
+  );
+  const coverAsset =
+    localCoverAsset ?? displayAssets.find((a) => a.id === kit?.thumbnail_asset_id);
+  const imageAssets = displayAssets.filter((a) =>
     IMAGE_ASSET_TYPES.includes(a.type)
   );
+  const coverId = coverAsset?.isLocalAsset ? coverAsset.localId : coverAsset?.id ?? null;
+  const syncSummary = useMemo(() => {
+    const pending = localAssets.filter((asset) =>
+      ["local", "queued"].includes(asset.syncStatus)
+    ).length;
+    const uploading = localAssets.filter(
+      (asset) => asset.syncStatus === "uploading"
+    ).length;
+    const failed = localAssets.filter(
+      (asset) => asset.syncStatus === "failed"
+    ).length;
+    const synced = localAssets.filter(
+      (asset) => asset.syncStatus === "synced"
+    ).length;
+    const remoteCacheBytes = remoteAssetCaches.reduce(
+      (total, cache) => total + cache.byteSize,
+      0
+    );
+    return {
+      pending,
+      uploading,
+      failed,
+      synced,
+      cached: remoteAssetCaches.length,
+      cacheSize: formatBytes(remoteCacheBytes),
+    };
+  }, [localAssets, remoteAssetCaches]);
 
   // -----------------------------------------------------------------------
   // Loading / error states
@@ -814,7 +1232,7 @@ export default function KitDetailScreen() {
             activeOpacity={0.8}
           >
             <Image
-              source={authenticatedImageSource(resolveThumbnailUrl(coverAsset))}
+              source={imageSourceForUri(resolveThumbnailUrl(coverAsset))}
               style={styles.coverImage}
               resizeMode="cover"
             />
@@ -834,7 +1252,7 @@ export default function KitDetailScreen() {
             activeOpacity={0.8}
           >
             <Image
-              source={authenticatedImageSource(resolveThumbnailUrl(imageAssets[0]))}
+              source={imageSourceForUri(resolveThumbnailUrl(imageAssets[0]))}
               style={styles.coverImage}
               resizeMode="cover"
             />
@@ -874,7 +1292,7 @@ export default function KitDetailScreen() {
                     activeOpacity={0.8}
                   >
                     <Image
-                      source={authenticatedImageSource(resolveThumbnailUrl(asset))}
+                      source={imageSourceForUri(resolveThumbnailUrl(asset))}
                       style={styles.thumbnail}
                       resizeMode="cover"
                     />
@@ -892,18 +1310,30 @@ export default function KitDetailScreen() {
           <Text style={styles.sectionTitle}>
             Recent Links ({links.length})
           </Text>
-          {links.slice(0, 5).map((link: any) => (
-            <View key={link.id} style={styles.summaryItem}>
-              <Text style={styles.summaryTitle} numberOfLines={1}>
-                {link.title}
-              </Text>
-              <Text style={styles.summaryMeta}>
-                {link.category.replace(/_/g, " ")} &middot;{" "}
-                {String(link.url).substring(0, 50)}
-                {String(link.url).length > 50 ? "..." : ""}
-              </Text>
-            </View>
-          ))}
+          {links.slice(0, 5).map((link: any) => {
+            const thumbnail = linkThumbnailSource(link);
+            const label = sourceLabel(link.source);
+            return (
+              <View key={link.id} style={styles.summaryItem}>
+                {thumbnail ? (
+                  <Image source={thumbnail} style={styles.summaryLinkThumbnail} />
+                ) : null}
+                <View style={styles.summaryText}>
+                  {label ? (
+                    <Text style={styles.summarySourceBadge}>{label}</Text>
+                  ) : null}
+                  <Text style={styles.summaryTitle} numberOfLines={1}>
+                    {link.title}
+                  </Text>
+                  <Text style={styles.summaryMeta}>
+                    {link.category.replace(/_/g, " ")} &middot;{" "}
+                    {String(link.url).substring(0, 50)}
+                    {String(link.url).length > 50 ? "..." : ""}
+                  </Text>
+                </View>
+              </View>
+            );
+          })}
           {links.length > 5 ? (
             <TouchableOpacity
               onPress={() => setTab("links")}
@@ -966,16 +1396,85 @@ export default function KitDetailScreen() {
       contentContainerStyle={styles.tabContentInner}
       showsVerticalScrollIndicator={false}
     >
-      {/* Import from Immich */}
-      <TouchableOpacity
-        style={styles.immichImportButton}
-        onPress={() => setImmichPickerOpen(true)}
-        activeOpacity={0.7}
-      >
-        <Text style={styles.immichImportText}>Import from Immich</Text>
-      </TouchableOpacity>
+      <View style={styles.assetImportPanel}>
+        {assetUploadError ? <ErrorBanner message={assetUploadError} /> : null}
+        <View style={styles.serviceStatusRow}>
+          <Text style={styles.serviceStatusText}>
+            Backend: {backendStatus === "online" ? "Online" : backendStatus === "offline" ? "Offline" : "Checking"}
+          </Text>
+          <TouchableOpacity
+            onPress={runForegroundSync}
+            activeOpacity={0.7}
+            disabled={syncInProgress}
+          >
+            <Text style={styles.serviceStatusAction}>
+              {syncInProgress ? "Syncing..." : "Retry sync"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.syncSummaryGrid}>
+          <View style={styles.syncSummaryItem}>
+            <Text style={styles.syncSummaryValue}>{syncSummary.pending}</Text>
+            <Text style={styles.syncSummaryLabel}>Pending</Text>
+          </View>
+          <View style={styles.syncSummaryItem}>
+            <Text style={styles.syncSummaryValue}>{syncSummary.uploading}</Text>
+            <Text style={styles.syncSummaryLabel}>Syncing</Text>
+          </View>
+          <View
+            style={[
+              styles.syncSummaryItem,
+              syncSummary.failed > 0 && styles.syncSummaryItemWarning,
+            ]}
+          >
+            <Text
+              style={[
+                styles.syncSummaryValue,
+                syncSummary.failed > 0 && styles.syncSummaryValueWarning,
+              ]}
+            >
+              {syncSummary.failed}
+            </Text>
+            <Text style={styles.syncSummaryLabel}>Failed</Text>
+          </View>
+          <View style={styles.syncSummaryItem}>
+            <Text style={styles.syncSummaryValue}>{syncSummary.cacheSize}</Text>
+            <Text style={styles.syncSummaryLabel}>
+              Cache ({syncSummary.cached})
+            </Text>
+          </View>
+        </View>
+        <View style={styles.assetImportRow}>
+          <TouchableOpacity
+            style={[styles.assetImportButton, styles.assetImportButtonPrimary]}
+            onPress={handleTakePhoto}
+            activeOpacity={0.7}
+            disabled={assetUploading}
+          >
+            <Text style={styles.assetImportButtonPrimaryText}>Take Photo</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.assetImportButton}
+            onPress={handleChoosePhotos}
+            activeOpacity={0.7}
+            disabled={assetUploading}
+          >
+            <Text style={styles.assetImportButtonText}>
+              {assetUploading ? "Uploading..." : "Choose Photos"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+        <TouchableOpacity
+          style={styles.immichImportButton}
+          onPress={() => setImmichPickerOpen(true)}
+          activeOpacity={0.7}
+          disabled={assetUploading}
+        >
+          <Text style={styles.immichImportText}>Import from Immich</Text>
+        </TouchableOpacity>
+      </View>
 
-      {assets.length === 0 ? (
+      {displayAssets.length === 0 ? (
         <View style={styles.emptyBox}>
           <Text style={styles.emptyText}>
             No assets yet. Upload images, videos, or documents to this kit.
@@ -992,7 +1491,6 @@ export default function KitDetailScreen() {
                 <Text style={styles.sectionTitle}>
                   {ASSET_TYPE_LABELS[type] || type} ({items.length})
                 </Text>
-                <Text style={styles.comingSoon}>Add files: coming soon</Text>
               </View>
               <View style={styles.thumbnailGrid}>
                 {items.map((asset: any) => (
@@ -1009,7 +1507,7 @@ export default function KitDetailScreen() {
                         activeOpacity={0.8}
                       >
                         <Image
-                          source={authenticatedImageSource(resolveThumbnailUrl(asset))}
+                          source={imageSourceForUri(resolveThumbnailUrl(asset))}
                           style={styles.assetThumbnail}
                           resizeMode="cover"
                         />
@@ -1027,26 +1525,50 @@ export default function KitDetailScreen() {
                     >
                       {asset.original_filename}
                     </Text>
-                    <View style={styles.assetActions}>
-                      {type !== "VIDEO" && type !== "DOCUMENT" ? (
-                        <TouchableOpacity
-                          onPress={() => handleSetCover(asset.id)}
-                          activeOpacity={0.7}
-                        >
-                          <Text style={styles.assetActionText}>
-                            {kit.thumbnail_asset_id === asset.id
-                              ? "Cover"
-                              : "Set as cover"}
+                    {coverId === (asset.isLocalAsset ? asset.localId : asset.id) ? (
+                      <Text style={styles.coverBadgeText}>Cover</Text>
+                    ) : null}
+                    {asset.isLocalAsset ? (
+                      <>
+                        <View style={styles.localAssetActions}>
+                          <Text
+                            style={[
+                              styles.localAssetBadge,
+                              asset.syncStatus === "failed" && styles.localAssetBadgeFailed,
+                            ]}
+                          >
+                            {asset.syncStatus === "uploading"
+                              ? "Syncing"
+                              : asset.syncStatus === "failed"
+                                ? "Failed"
+                                : "Pending"}
                           </Text>
-                        </TouchableOpacity>
-                      ) : null}
-                      <TouchableOpacity
-                        onPress={() => confirmDeleteAsset(asset)}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={styles.deleteAssetText}>Delete</Text>
-                      </TouchableOpacity>
-                    </View>
+                          {asset.syncStatus !== "uploading" ? (
+                            <>
+                              {asset.syncStatus === "failed" ? (
+                                <TouchableOpacity
+                                  onPress={() => handleRetryLocalAsset(asset)}
+                                  activeOpacity={0.7}
+                                >
+                                  <Text style={styles.localAssetRetryText}>Retry</Text>
+                                </TouchableOpacity>
+                              ) : null}
+                              <TouchableOpacity
+                                onPress={() => confirmDeleteLocalAsset(asset)}
+                                activeOpacity={0.7}
+                              >
+                                <Text style={styles.localAssetRemoveText}>Remove</Text>
+                              </TouchableOpacity>
+                            </>
+                          ) : null}
+                        </View>
+                        {asset.error ? (
+                          <Text style={styles.localAssetError} numberOfLines={2}>
+                            {asset.error}
+                          </Text>
+                        ) : null}
+                      </>
+                    ) : null}
                   </View>
                 ))}
               </View>
@@ -1092,6 +1614,21 @@ export default function KitDetailScreen() {
             placeholder="https://..."
             required
           />
+          {linkForm.source || linkForm.thumbnailUri ? (
+            <View style={styles.linkSourcePreview}>
+              {linkForm.thumbnailUri ? (
+                <Image
+                  source={{ uri: linkForm.thumbnailUri }}
+                  style={styles.linkThumbnailPreview}
+                />
+              ) : null}
+              {sourceLabel(linkForm.source) ? (
+                <Text style={styles.linkSourceBadge}>
+                  {sourceLabel(linkForm.source)}
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
           <Text style={styles.fieldHint}>Category</Text>
           <ChipSelector
             options={LINK_CATEGORIES}
@@ -1136,10 +1673,19 @@ export default function KitDetailScreen() {
           </Text>
         </View>
       ) : (
-        links.map((link: any) => (
+        links.map((link: any) => {
+          const thumbnail = linkThumbnailSource(link);
+          const label = sourceLabel(link.source);
+          return (
           <View key={link.id} style={styles.listCard}>
             <View style={styles.listCardHeader}>
+              {thumbnail ? (
+                <Image source={thumbnail} style={styles.linkThumbnail} />
+              ) : null}
               <View style={styles.listCardBody}>
+                {label ? (
+                  <Text style={styles.linkSourceBadge}>{label}</Text>
+                ) : null}
                 <Text style={styles.listCardTitle}>{link.title}</Text>
                 <Text style={styles.listCardMeta}>
                   {(link.category || "")
@@ -1181,7 +1727,8 @@ export default function KitDetailScreen() {
               </View>
             </View>
           </View>
-        ))
+          );
+        })
       )}
     </ScrollView>
   );
@@ -1323,12 +1870,124 @@ export default function KitDetailScreen() {
         <ImageViewer
           images={imageAssets}
           currentIndex={viewerIndex}
-          coverId={coverAsset?.id ?? null}
+          coverId={coverId}
           onClose={() => setViewerOpen(false)}
-          onSetCover={handleSetCover}
+          onSetCover={handleSetViewerCover}
           onNavigate={setViewerIndex}
+          onAssetCached={refreshRemoteAssetCaches}
         />
       ) : null}
+
+      <Modal
+        visible={!!photoDraft}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={resetPhotoDraft}
+      >
+        <SafeAreaView style={styles.captureModalSafe}>
+          <ScrollView
+            style={styles.captureModalScroll}
+            contentContainerStyle={styles.captureModalContent}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.captureModalHeader}>
+              <Text style={styles.captureModalTitle}>Save Photo</Text>
+              <TouchableOpacity
+                onPress={resetPhotoDraft}
+                activeOpacity={0.7}
+                disabled={assetUploading}
+              >
+                <Text style={styles.editLink}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+
+            {assetUploadError ? <ErrorBanner message={assetUploadError} /> : null}
+
+            {photoDraft ? (
+              <Image
+                source={{ uri: photoDraft.uri }}
+                style={styles.capturePreview}
+                resizeMode="cover"
+              />
+            ) : null}
+
+            <Text style={styles.fieldHint}>Asset Type</Text>
+            <View style={styles.captureTypeGrid}>
+              {LOCAL_IMAGE_ASSET_TYPES.map((type) => {
+                const active = assetUploadType === type;
+                return (
+                  <TouchableOpacity
+                    key={type}
+                    style={[
+                      styles.captureTypeChip,
+                      active && styles.captureTypeChipActive,
+                    ]}
+                    onPress={() => setAssetUploadType(type)}
+                    activeOpacity={0.7}
+                    disabled={assetUploading}
+                  >
+                    <Text
+                      style={[
+                        styles.captureTypeChipText,
+                        active && styles.captureTypeChipTextActive,
+                      ]}
+                    >
+                      {ASSET_TYPE_LABELS[type] || type}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <Text style={styles.fieldHint}>Description</Text>
+            <TextInput
+              style={[styles.inlineInput, styles.captureDescriptionInput]}
+              value={assetUploadDescription}
+              onChangeText={setAssetUploadDescription}
+              placeholder="Optional note for this photo"
+              placeholderTextColor={colors.muted}
+              multiline
+              textAlignVertical="top"
+              editable={!assetUploading}
+            />
+
+            <TouchableOpacity
+              style={[
+                styles.captureCoverToggle,
+                assetSetCover && styles.captureCoverToggleActive,
+              ]}
+              onPress={() => setAssetSetCover((prev) => !prev)}
+              activeOpacity={0.7}
+              disabled={assetUploading}
+            >
+              <View
+                style={[
+                  styles.captureCoverMark,
+                  assetSetCover && styles.captureCoverMarkActive,
+                ]}
+              />
+              <Text style={styles.captureCoverText}>Set as kit cover</Text>
+            </TouchableOpacity>
+
+            <View style={styles.captureActions}>
+              <Button
+                title="Retake"
+                variant="ghost"
+                onPress={async () => {
+                  const asset = await takeAssetPhoto();
+                  if (asset) setPhotoDraft(asset);
+                }}
+                disabled={assetUploading}
+              />
+              <Button
+                title="Save Photo"
+                onPress={handleSavePhotoDraft}
+                loading={assetUploading}
+              />
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
 
       {/* Immich Picker */}
       <ImmichPicker
@@ -1518,6 +2177,16 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     marginTop: 8,
   } as TextStyle,
+  inlineInput: {
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 15,
+    color: colors.ink,
+    backgroundColor: colors.surface,
+  } as TextStyle,
   chipSelectorRow: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -1650,12 +2319,50 @@ const styles = StyleSheet.create({
     fontSize: 28,
     color: colors.muted,
   } as TextStyle,
-  assetActions: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+  coverBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.accent,
+    marginTop: 3,
+  } as TextStyle,
+  localAssetBadge: {
+    alignSelf: "flex-start",
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#2a5c8d",
+    backgroundColor: "#e4eef8",
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 999,
     marginTop: 4,
+    overflow: "hidden",
+  } as TextStyle,
+  localAssetBadgeFailed: {
+    color: colors.danger,
+    backgroundColor: "#ffe7e7",
+  } as TextStyle,
+  localAssetActions: {
+    marginTop: 4,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   } as ViewStyle,
+  localAssetRemoveText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: colors.danger,
+  } as TextStyle,
+  localAssetRetryText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.accent,
+  } as TextStyle,
+  localAssetError: {
+    marginTop: 4,
+    fontSize: 11,
+    color: colors.danger,
+    lineHeight: 15,
+  } as TextStyle,
   assetActionText: {
     fontSize: 12,
     fontWeight: "600",
@@ -1666,13 +2373,123 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: colors.danger,
   } as TextStyle,
+  assetImportPanel: {
+    marginBottom: 18,
+  } as ViewStyle,
+  serviceStatusRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  } as ViewStyle,
+  serviceStatusText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: colors.muted,
+  } as TextStyle,
+  serviceStatusAction: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.accent,
+  } as TextStyle,
+  syncSummaryGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 12,
+  } as ViewStyle,
+  syncSummaryItem: {
+    flexGrow: 1,
+    flexBasis: "22%",
+    minWidth: 74,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: 10,
+    paddingHorizontal: 9,
+    paddingVertical: 8,
+    backgroundColor: "#fffdf8",
+  } as ViewStyle,
+  syncSummaryItemWarning: {
+    borderColor: "#e1b7b7",
+    backgroundColor: "#fff1f1",
+  } as ViewStyle,
+  syncSummaryValue: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: colors.ink,
+  } as TextStyle,
+  syncSummaryValueWarning: {
+    color: colors.danger,
+  } as TextStyle,
+  syncSummaryLabel: {
+    marginTop: 2,
+    fontSize: 10,
+    fontWeight: "700",
+    color: colors.muted,
+    textTransform: "uppercase",
+  } as TextStyle,
+  assetImportRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 10,
+  } as ViewStyle,
+  assetImportButton: {
+    flex: 1,
+    minHeight: 46,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderStyle: "dashed",
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#faf8f5",
+  } as ViewStyle,
+  assetImportButtonPrimary: {
+    borderColor: colors.accent,
+    backgroundColor: "rgba(197,103,42,0.08)",
+  } as ViewStyle,
+  assetImportButtonText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: colors.muted,
+  } as TextStyle,
+  assetImportButtonPrimaryText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: colors.accent,
+  } as TextStyle,
 
   // Summary items (links & timeline)
   summaryItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.line,
   } as ViewStyle,
+  summaryText: {
+    flex: 1,
+    minWidth: 0,
+  } as ViewStyle,
+  summaryLinkThumbnail: {
+    width: 68,
+    height: 46,
+    borderRadius: 7,
+    backgroundColor: "#eee8df",
+  } as ImageStyle,
+  summarySourceBadge: {
+    alignSelf: "flex-start",
+    borderRadius: 999,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    backgroundColor: "rgba(197,103,42,0.12)",
+    color: colors.accent,
+    fontSize: 10,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    marginBottom: 4,
+  } as TextStyle,
   summaryTitle: {
     fontSize: 14,
     fontWeight: "600",
@@ -1710,6 +2527,38 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "flex-start",
   } as ViewStyle,
+  linkSourcePreview: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 10,
+    marginBottom: 4,
+  } as ViewStyle,
+  linkThumbnailPreview: {
+    width: 96,
+    height: 60,
+    borderRadius: 8,
+    backgroundColor: "#eee8df",
+  } as ImageStyle,
+  linkThumbnail: {
+    width: 82,
+    height: 58,
+    borderRadius: 8,
+    backgroundColor: "#eee8df",
+    marginRight: 12,
+  } as ImageStyle,
+  linkSourceBadge: {
+    alignSelf: "flex-start",
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    backgroundColor: "rgba(197,103,42,0.12)",
+    color: colors.accent,
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    marginBottom: 5,
+  } as TextStyle,
   listCardBody: {
     flex: 1,
     marginRight: 12,
@@ -1827,6 +2676,105 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: colors.accent,
   } as TextStyle,
+
+  // Capture modal
+  captureModalSafe: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  } as ViewStyle,
+  captureModalScroll: {
+    flex: 1,
+  } as ViewStyle,
+  captureModalContent: {
+    padding: 20,
+    paddingBottom: 36,
+  } as ViewStyle,
+  captureModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  } as ViewStyle,
+  captureModalTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: colors.ink,
+  } as TextStyle,
+  capturePreview: {
+    width: "100%",
+    aspectRatio: 1,
+    borderRadius: 12,
+    backgroundColor: "#ece3d7",
+    marginBottom: 18,
+  } as ImageStyle,
+  captureTypeGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 16,
+  } as ViewStyle,
+  captureTypeChip: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
+  } as ViewStyle,
+  captureTypeChipActive: {
+    borderColor: colors.accent,
+    backgroundColor: "rgba(197,103,42,0.1)",
+  } as ViewStyle,
+  captureTypeChipText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.muted,
+  } as TextStyle,
+  captureTypeChipTextActive: {
+    color: colors.accent,
+  } as TextStyle,
+  captureDescriptionInput: {
+    minHeight: 84,
+    paddingTop: 12,
+    marginBottom: 14,
+  } as TextStyle,
+  captureCoverToggle: {
+    minHeight: 48,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 14,
+    marginBottom: 18,
+  } as ViewStyle,
+  captureCoverToggleActive: {
+    borderColor: colors.accent,
+    backgroundColor: "rgba(197,103,42,0.08)",
+  } as ViewStyle,
+  captureCoverMark: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
+  } as ViewStyle,
+  captureCoverMarkActive: {
+    borderColor: colors.accent,
+    backgroundColor: colors.accent,
+  } as ViewStyle,
+  captureCoverText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: colors.ink,
+  } as TextStyle,
+  captureActions: {
+    flexDirection: "row",
+    gap: 10,
+  } as ViewStyle,
 
   // Image modal (legacy - kept for reference, replaced by ImageViewer)
   modalSafe: {
